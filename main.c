@@ -18,13 +18,18 @@ typedef struct {
 	char *endereco;
 } REGISTRO;
 
+typedef struct {
+	REGISTRO** vetRegistro;
+	int numElementos;
+} VETREGISTROS;
+
 void CarregaArquivo(char* nomeArquivo) {
 	FILE* fp = fopen(nomeArquivo, "r");
 	if (fp == NULL) {
 		printf(ERRO_GERAL);
 		return;
 	}
-//	REGISTRO registro;
+	REGISTRO registro;
 	
 	//while (fscanf(fp, "%d", &(registro->codEscola)) != EOF) {
 	for (int i = 0; i < 6; ++i) {
@@ -39,13 +44,13 @@ void CarregaArquivo(char* nomeArquivo) {
 	fclose(fp);
 }
 
-REGISTRO** RecuperaTodosRegistros() {
+VETREGISTROS* RecuperaTodosRegistros() {
 }
 
-REGISTRO** RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
+VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
 }
 
-REGISTRO* RecuperaRegistroPorRRN(int RRN) {
+VETREGISTROS* RecuperaRegistroPorRRN(int RRN) {
 }
 
 void RemocaoLogicaPorRRN(int RRN) {
@@ -84,8 +89,7 @@ int main(int argc, char *argv[]){
 		return -1;
 	}
 
-	REGISTRO** vetRegistro = NULL;
-	REGISTRO* registro = NULL;
+	VETREGISTROS* vetRegistros = NULL;
 	int* vetPilha = NULL;
 
 	switch (atoi(argv[1])) {
@@ -95,18 +99,18 @@ int main(int argc, char *argv[]){
 			break;
 		case 2:
 			ConfereEntrada(argc, 2);
-			RecuperaTodosRegistros();
-			ImprimeRegistros();
+			vetRegistros = RecuperaTodosRegistros();
+			ImprimeRegistros(vetRegistros);
 			break;
 		case 3:
 			ConfereEntrada(argc, 4);
-			RecuperaRegistrosPorCampo(argv[2], argv[3]);
-			ImprimeRegistros();
+			vetRegistros = RecuperaRegistrosPorCampo(argv[2], argv[3]);
+			ImprimeRegistros(vetRegistros);
 			break;
 		case 4:
 			ConfereEntrada(argc, 3);
-			RecuperaRegistroPorRRN(atoi(argv[2]));
-			ImprimeRegistros();
+			vetRegistros = RecuperaRegistroPorRRN(atoi(argv[2]));
+			ImprimeRegistros(vetRegistros);
 			break;
 		case 5:
 			ConfereEntrada(argc, 3);
