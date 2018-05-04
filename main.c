@@ -4,6 +4,7 @@
 
 #define ERRO_GERAL "Falha no carregamento do arquivo.\n"
 #define ERRO_REGISTRO "Registro inexistente.\n"
+#define ERRO_PROCESSAMENTO "Falha no processamento do arquivo.\n"
 #define ARQUIVO_SAIDA "saida.bin"
 #define TAMANHO_CABECALHO 5
 #define TAMANHO_REGISTRO 112
@@ -804,7 +805,7 @@ VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
 	
 	FILE* fp = fopen(ARQUIVO_SAIDA, "rb");
 
-	//ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA); //confere a consistência do arquivo
+	ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA); //confere a consistência do arquivo
 	
 	fseek(fp, 4, SEEK_SET); //consome o topo da pilha
 
@@ -846,9 +847,9 @@ void RemocaoLogicaPorRRN(int RRN) {
 		return;
 	}
 
-	fseek(fp, RRN, SEEK_CUR); //vai para o byte offset de posição RRN
+	fseek(fp, BYTE_OFFSET(RRN), SEEK_CUR); //vai para o byte offset de posição RRN
 
-	fread(&regExiste, sizeof(int), 1, fp); 
+	fread(&regExiste, sizeof(int), 1, fp);
 
 	if(regExiste == -1){ //verifica se o registro existe
 		printf(ERRO_REGISTRO);
@@ -880,6 +881,49 @@ void DesfragmentaArquivoDeDados() {
 }
 
 int* RecuperaRRNLogicamenteRemovidos() {
+
+	int count = 0;
+	int buffer = 10;
+	int aux;
+
+	FILE *fp = fopen(ARQUIVO_SAIDA, "rb");
+
+	int *vet = (int*) malloc(sizeof(int)*buffer);
+
+	vet[0] = count; 
+
+	count++; //incrementa a posição do vetor vTotal
+	if(count == buffer){ //verifica se é necessário dar realloc
+		buffer = buffer + 10;
+		vet = (int*) realloc(vet, buffer);
+	}
+
+	ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA); //confere a consistência do arquivo
+
+	int topoPilha;
+
+	fread(&topoPilha, sizeof(topoPilha), 1, fp); //salva o topo da pilha
+
+	while(topoPilha != -1){ //recupera os RRN enquanto a pilha não estiver vazia
+		
+		vet[0] = ++count; //salva a quantidade de RRN removidos na posição zero do vetor
+		
+		vet[count] = topoPilha; //salva o RRN no vetor
+
+		//vai para o byte offset do RRN salvo no topo da pilha
+		fseek(fp, BYTE_OFFSET(topoPilha), SEEK_SET);
+
+		//verifica se o registro realmente foi removido
+		fread(&aux, sizeof(aux), 1, fp);
+		if(aux != -1)
+			return NULL; 
+
+		fread(&topoPilha, sizeof(topoPilha), 1, fp); //salva o novo topo da pilha 
+	}
+
+	fclose(fp);
+
+	return vet;
 }
 
 void ConfereEntrada(int argc, int valorEsperado) {
@@ -890,9 +934,26 @@ void ConfereEntrada(int argc, int valorEsperado) {
 }
 
 void ImprimeRegistros(VETREGISTROS *vetRegistros) {
+	
 }
 
 void ImprimeVetor(int* vet) {
+
+	if(vet == NULL){
+		printf(ERRO_PROCESSAMENTO);
+		return;
+	}
+
+	int tam = vet[0];
+	
+	if(tam < 1){
+		printf("Pilha vazia");
+		return;
+	}
+
+	for(int i=1; i<tam; i++)
+		printf("%d ", vet[i]);
+	printf("\n");
 }
 
 int main(int argc, char *argv[]){
