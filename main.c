@@ -5,6 +5,9 @@
 #define ERRO_GERAL "Falha no carregamento do arquivo.\n"
 #define ERRO_REGISTRO "Registro inexistente.\n"
 #define ARQUIVO_SAIDA "saida.bin"
+#define TAMANHO_CABECALHO 5
+#define TAMANHO_REGISTRO 112
+#define BYTE_OFFSET(RRN) ((4 + TAMANHO_REGISTRO) * RRN) + TAMANHO_CABECALHO
 
 typedef struct {
 	int codEscola;
@@ -23,50 +26,120 @@ typedef struct {
 	int numElementos;
 } VETREGISTROS;
 
-void AlteraStatusDoArquivo(char status) {
-	if (status != 0 && status != 1)
+void AlteraStatusDoArquivo(char* nomeArquivo, char status) {
+	if (nomeArquivo == NULL || (status != 0 && status != 1))
 		return;
+
 	FILE* fp = fopen(ARQUIVO_SAIDA, "rb+");
 	fwrite(&status, sizeof(status), 1, fp);
 	fclose(fp);
 }
 
-int ConfereConsistenciaDoArquivo(char* nomeArquivo) {
-	FILE* fp = fopen(nomeArquivo, "rb");
-	char status;
-	if (fp == NULL)
-		return 0;
+void ConfereConsistenciaDoArquivo(char* nomeArquivo) {
+	if (nomeArquivo == NULL) {
+		printf(ERRO_GERAL);
+		exit(1);
+	}
 
+	FILE* fp = fopen(nomeArquivo, "rb");
+	if (fp == NULL) {
+		printf(ERRO_GERAL);
+		exit(1);
+	}
+
+	char status;
 	fread(&status, sizeof(status), 1, fp);
-	return status;
+	if (status == 1) 
+		return;
+
+	printf(ERRO_GERAL);
+	exit(1);
 }
 
-void CriaArquivoDeSaida() {
-	FILE* fp = fopen(ARQUIVO_SAIDA, "wb");
+void CriaArquivoDeSaida(char* nomeArquivo) {
+	if (nomeArquivo == NULL)
+		return;
+
+	FILE* fp = fopen(nomeArquivo, "wb");
 	char status = 0;
 	int topoPilha = -1;
 	fwrite(&status, sizeof(status), 1, fp);
 	fwrite(&topoPilha, sizeof(topoPilha), 1, fp);
+
+	topoPilha = 324;
+	printf("topoPilha antes: %d\n", topoPilha);
+	fseek(fp, 1, SEEK_SET);
+	fread(&topoPilha, 4, 1, fp);
+	printf("topo DEPOISS: %d\n", topoPilha);
 }
 
-void InsereRegistro(REGISTRO* registro) {
-	if (registro == NULL)
+void AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro) {
+	if (nomeArquivo == NULL || registro == NULL)
 		return;
 
-	ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
+	FILE* fp = fopen(nomeArquivo, "ab");
+	printf("inserindo registro %d da escola %s\n", registro->codEscola, registro->nomeEscola);
+	printf("ftell no começo%ld\n", ftell(fp));
 
-	FILE* fp = fopen(ARQUIVO_SAIDA, "ab+");
+	fseek(fp, 0, SEEK_END);
 
 	int registroRemovido = 0;
+	printf("%ld ", ftell(fp));
 	fwrite(&registroRemovido, sizeof(registroRemovido), 1, fp);
+	printf("%ld ", ftell(fp));
+	fwrite(&registro->codEscola, sizeof(registro->codEscola), 1, fp);
+	printf("%ld ", ftell(fp));
+	fwrite(registro->dataInicio, sizeof(char), strlen(registro->dataInicio), fp);
+	printf("%ld ", ftell(fp));
+	fwrite(registro->dataFinal, sizeof(char), strlen(registro->dataFinal), fp);
+	printf("%ld ", ftell(fp));
+	fwrite(&registro->tamNome, sizeof(registro->tamNome), 1, fp);
+	printf("%ld ", ftell(fp));
+	fwrite(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
+	printf("%ld ", ftell(fp));
+	fwrite(&registro->tamEndereco, sizeof(registro->tamEndereco), 1, fp);
+	printf("%ld ", ftell(fp));
+	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
+	printf("%ld ", ftell(fp));
+	fwrite(&registro->tamMunicipio, sizeof(registro->tamMunicipio), 1, fp);
+	printf("%ld ", ftell(fp));
+	fwrite(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
+	printf("%ld ", ftell(fp));
+
+	int bytesRestantes = TAMANHO_REGISTRO;
+	bytesRestantes -= 36 + registro->tamNome + registro->tamEndereco + registro->tamMunicipio;
+
+	char* finalDoRegistro = (char*)malloc(sizeof(char) * bytesRestantes);
+	fwrite(finalDoRegistro, sizeof(char), bytesRestantes, fp);
+	printf("ftell FINALLL: %ld\n", ftell(fp));
 }
 
-void InsereVetorDeRegistros(VETREGISTROS* vetRegistros) {
-	if (vetRegistros == NULL)
+void SubstituiRegistro(char* nomeArquivo, REGISTRO* registro, int byteOffset) {
+}
+
+void InsereRegistro(char* nomeArquivo, REGISTRO* registro) {
+	if (nomeArquivo == NULL || registro == NULL)
+		return;
+
+	FILE* fp = fopen(nomeArquivo, "rb+");
+
+	fseek(fp, 1, SEEK_SET);
+
+	int topoPilha;
+	fread(&topoPilha, sizeof(topoPilha), 1, fp);
+
+	fclose(fp);
+
+	(topoPilha == -1) ? AcrescentaRegistroNoFinal(nomeArquivo, registro) : 
+		SubstituiRegistro(nomeArquivo, registro, BYTE_OFFSET(topoPilha));
+}
+
+void InsereVetorDeRegistros(char* nomeArquivo, VETREGISTROS* vetRegistros) {
+	if (nomeArquivo == NULL || vetRegistros == NULL)
 		return;
 
 	for (int i = 0; i < vetRegistros->numElementos; ++i) {
-		InsereRegistro(vetRegistros->registro[i]);
+		InsereRegistro(nomeArquivo, vetRegistros->registro[i]);
 	}
 }
 
@@ -587,11 +660,11 @@ VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
 	int arqExiste;
 	
 
-	fread(&regExiste, 1, 1, fp);
+	//fread(&regExiste, 1, 1, fp);
 
 	if(arqExiste == '0'){  //arquivo inconsistente 
 		printf(ERRO_GERAL);
-		return;
+		return NULL;
 	}
 	
 	fseek(fp, 4, SEEK_SET); //consome o topo da pilha
@@ -656,8 +729,8 @@ int main(int argc, char *argv[]){
 		case 1:
 			ConfereEntrada(argc, 3);
 			vetRegistros = LeituraArquivoDeEntrada(argv[2]);
-			CriaArquivoDeSaida();
-			InsereVetorDeRegistros(vetRegistros);
+			CriaArquivoDeSaida(ARQUIVO_SAIDA);
+			InsereVetorDeRegistros(ARQUIVO_SAIDA, vetRegistros);
 			break;
 		case 2:
 			ConfereEntrada(argc, 2);
