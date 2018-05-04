@@ -113,7 +113,68 @@ VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
 	return vetRegistros;
 }
 
-VETREGISTROS* RecuperaTodosRegistros() {
+VETREGISTROS* RecuperaTodosRegistros() 
+{
+	FILE* fp = fopen(ARQUIVO_SAIDA,"rb");// Abre o arquivo
+	char existealgo;
+	fread(&(existealgo),1,1,fp);
+	if(existealgo == '0') // significa que não tem nada para ser lido
+	{
+		printf(ERRO_GERAL);
+		return ;
+	}
+	fseek(fp,4,SEEK_SET); // vai pular direto pra quinta posição, pois as 5 primeiras são cabeçalho
+	VETREGISTROS *vTotal; // vetor com todos os registros
+	REGISTRO *at;
+	int buffer = 10;
+	int count=0; // realloc do vetor de registros
+	at = (REGISTRO*) malloc(sizeof(REGISTRO)*buffereg); // registro do momento que está sendo lido (Registro horizontal)
+
+	//vTotal->vetRegistro[0] = at; // vetRegistro (pertence ao vTotal)s
+
+	vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)); // vTotal é uma struct, logo aloca-se uma struct
+	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer); // ** é para aumentar verticalment
+					
+
+	while(feof(fp)!=0)
+	{
+		int existe; // Serve para um registro individualmente (Pois o registro pode ter sido apagado)
+		fread(&existe,sizeof(int),1,fp); // Saber se existe aquele registro 
+		if(existe < 0) 
+			fseek(fp,sizeof(REGISTRO),SEEK_CURR);
+		/*
+			Como altera algo, utiliza-se endereço, Dentro do vTotal tem o vetor de registros, vai alterar dentro do vetor de registros
+			Por alterar pressupoe-se ler o valor daquela linha do arquivo
+			Altera o registro da linha atual (linha atual = count)
+		*/
+		fread(&(vTotal->vetRegistro[count]->dataInicio),1,10,fp); //Vetor de registro na posição count da struct vai receber o valor da data de inicio
+		fread(&(vTotal->vetRegistro[count]->dataFinal),1,10,fp);// Data Final
+		
+		fread(&(vTotal->vetRegistro[count]->tamNome),1,4,fp); // Aqui tem o tamanho do nome da escola que vai ser lida (Alocada)
+		int Tamanho_Nome = vTotal->vetRegistro[count]->tamNome;
+		vTotal->vetRegistro[count]->nomeEscola = (char*) malloc(sizeof(char)*Tamanho_Nome); // Criei um espaço do tamanho do nome para usar no fread
+		fread(&(vTotal->vetRegistro[count]->nomeEscola),1,Tamanho_Nome,fp); // Leio o nome da Escola 
+
+		fread(&(vTotal->vetRegistro[count]->tamMunicipio,1,4,fp)); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
+		int Tamanho_Municipio = vTotal->vetRegistro[count]->tamMunicipio ;
+		vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); // Aloquei para o nome do município o tamanho descoberto na palavra anterior
+		fread(&(vTotal->vetRegistro[count]->município),1,Tamanho_Municipio,fp);
+
+		fread(&(vTotal->vetRegistro->tamEndereco),1,4,fp);
+		int Tamanho_Endereco = vTotal->vetRegistro->tamEndereco;
+		vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
+		fread(&(vTotal->vetRegistro[count]->endereco),1,Tamanho_Endereco,fp);
+
+		if(count == buffer)
+		{
+			buffer+=10;
+			vTotal-> vetRegistro = (REGISTRO**)realloc(vTotal->vetRegistro,buffer);
+			vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
+		}
+		count++;
+
+	}
+
 }
 
 VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
