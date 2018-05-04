@@ -19,15 +19,26 @@ typedef struct {
 } REGISTRO;
 
 typedef struct {
-	REGISTRO** vetRegistro;
+	REGISTRO** registro;
 	int numElementos;
 } VETREGISTROS;
 
-void FechaArquivoDeSaida(FILE* fp) {
-	char status = 1;
-	rewind(fp);
+void AlteraStatusDoArquivo(char status) {
+	if (status != 0 && status != 1)
+		return;
+	FILE* fp = fopen(ARQUIVO_SAIDA, "rb+");
 	fwrite(&status, sizeof(status), 1, fp);
 	fclose(fp);
+}
+
+int ConfereConsistenciaDoArquivo(char* nomeArquivo) {
+	FILE* fp = fopen(nomeArquivo, "rb");
+	char status;
+	if (fp == NULL)
+		return 0;
+
+	fread(&status, sizeof(status), 1, fp);
+	return status;
 }
 
 void CriaArquivoDeSaida() {
@@ -36,13 +47,27 @@ void CriaArquivoDeSaida() {
 	int topoPilha = -1;
 	fwrite(&status, sizeof(status), 1, fp);
 	fwrite(&topoPilha, sizeof(topoPilha), 1, fp);
-	FechaArquivoDeSaida(fp);
 }
 
 void InsereRegistro(REGISTRO* registro) {
+	if (registro == NULL)
+		return;
+
+	ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
+
+	FILE* fp = fopen(ARQUIVO_SAIDA, "ab+");
+
+	int registroRemovido = 0;
+	fwrite(&registroRemovido, sizeof(registroRemovido), 1, fp);
 }
 
 void InsereVetorDeRegistros(VETREGISTROS* vetRegistros) {
+	if (vetRegistros == NULL)
+		return;
+
+	for (int i = 0; i < vetRegistros->numElementos; ++i) {
+		InsereRegistro(vetRegistros->registro[i]);
+	}
 }
 
 VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
@@ -63,7 +88,7 @@ VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
 			fscanf(fp, "%*c%m[^;\n]", &string[i]);
 		fgetc(fp);
 
-		vetRegistros->vetRegistro = (REGISTRO**)realloc(vetRegistros->vetRegistro, 
+		vetRegistros->registro = (REGISTRO**)realloc(vetRegistros->registro, 
 				sizeof(REGISTRO*) * (++vetRegistros->numElementos));
 
 		registro = (REGISTRO*)malloc(sizeof(REGISTRO));
@@ -81,7 +106,7 @@ VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
 		registro->tamEndereco = (string[3] != NULL) ? strlen(string[3]) : 0;
 		registro->endereco = string[3];
 
-		vetRegistros->vetRegistro[counter++] = registro;
+		vetRegistros->registro[counter++] = registro;
 
 		free(string[0]);
 		if (string[4] != NULL) free(string[4]);
@@ -90,7 +115,7 @@ VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
 
 	REGISTRO* r;
 	for (int i = 0; i < vetRegistros->numElementos; ++i) {
-		r = vetRegistros->vetRegistro[i];
+		r = vetRegistros->registro[i];
 		printf("%d %s %s %d %s %d %s %d %s\n", r->codEscola, r->dataInicio, r->dataFinal,
 			r->tamNome, r->nomeEscola, r->tamMunicipio, r->municipio, r->tamEndereco,
 			r->endereco);
@@ -99,13 +124,13 @@ VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
 
 // free do vetor de registros
 /*	for (int i = 0; i < vetRegistros->numElementos; ++i) {
-		r = vetRegistros->vetRegistro[i];
+		r = vetRegistros->registro[i];
 		if (r->nomeEscola != NULL) free(r->nomeEscola);
 		if (r->municipio != NULL) free(r->municipio);
 		if (r->endereco != NULL) free(r->endereco);
 		free(r);
 	}
-	free(vetRegistros->vetRegistro);
+	free(vetRegistros->registro);
 	free(vetRegistros);
 */
 	fclose(fp);
@@ -121,7 +146,7 @@ void RecuperaRegistrosCodEscola(FILE *fp, char* valor){
 	int num = atoi(valor);
 
 	VETREGISTROS *vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)*buffer);
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
 
 	while(feof(fp) != 0){
 
@@ -132,30 +157,30 @@ void RecuperaRegistrosCodEscola(FILE *fp, char* valor){
 			continue;
 		}
 	
-		fread(&(vTotal->vetRegistro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
+		fread(&(vTotal->registro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
 
-		if(num == vTotal->vetRegistro[count]->codEscola){  //verifica se o código da escola é o procurado pelo usuário
+		if(num == vTotal->registro[count]->codEscola){  //verifica se o código da escola é o procurado pelo usuário
 				
-			fread(&(vTotal->vetRegistro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
-			fread(&(vTotal->vetRegistro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFim
+			fread(&(vTotal->registro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
+			fread(&(vTotal->registro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFim
 	
 			//leitura do nome da escola
-			fread(&(vTotal->vetRegistro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
-			int tamNome =  vTotal->vetRegistro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
-			vTotal->vetRegistro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
-			fread(&(vTotal->vetRegistro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
+			fread(&(vTotal->registro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
+			int tamNome =  vTotal->registro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
+			vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
+			fread(&(vTotal->registro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
 
 			//leitura do municipio da escola
-			fread(&(vTotal->vetRegistro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
-			int tamMunicipio =  vTotal->vetRegistro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
-			vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
-			fread(&(vTotal->vetRegistro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
+			fread(&(vTotal->registro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
+			int tamMunicipio =  vTotal->registro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
+			vTotal->registro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
+			fread(&(vTotal->registro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
 
 			//leitura do endereço da escola
-			fread(&(vTotal->vetRegistro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
-			int tamEndereco = vTotal->vetRegistro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
-			vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
-			fread(&(vTotal->vetRegistro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
+			fread(&(vTotal->registro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
+			int tamEndereco = vTotal->registro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
+			vTotal->registro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
+			fread(&(vTotal->registro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
 
 			count++; //incrementa a posição do vetor vTotal
 			if(count == buffer){ //verifica se é necessário dar realloc
@@ -190,7 +215,7 @@ void RecuperaRegistrosDataInicio(FILE *fp, char* valor){
 	int count = 0;
 
 	VETREGISTROS *vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)*buffer);
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
 
 	while(feof(fp) != 0){
 
@@ -201,30 +226,30 @@ void RecuperaRegistrosDataInicio(FILE *fp, char* valor){
 			continue;
 		}
 	
-		fread(&(vTotal->vetRegistro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
-		fread(&(vTotal->vetRegistro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
+		fread(&(vTotal->registro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
+		fread(&(vTotal->registro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
 
-		if(strcmp(valor, vTotal->vetRegistro[count]->dataInicio) == 0){  //verifica se o data inicial da escola é a procurado pelo usuário
+		if(strcmp(valor, vTotal->registro[count]->dataInicio) == 0){  //verifica se o data inicial da escola é a procurado pelo usuário
 				
-			fread(&(vTotal->vetRegistro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFim
+			fread(&(vTotal->registro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFim
 	
 			//leitura do nome da escola
-			fread(&(vTotal->vetRegistro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
-			int tamNome =  vTotal->vetRegistro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
-			vTotal->vetRegistro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
-			fread(&(vTotal->vetRegistro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
+			fread(&(vTotal->registro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
+			int tamNome =  vTotal->registro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
+			vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
+			fread(&(vTotal->registro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
 
 			//leitura do municipio da escola
-			fread(&(vTotal->vetRegistro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
-			int tamMunicipio =  vTotal->vetRegistro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
-			vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
-			fread(&(vTotal->vetRegistro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
+			fread(&(vTotal->registro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
+			int tamMunicipio =  vTotal->registro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
+			vTotal->registro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
+			fread(&(vTotal->registro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
 
 			//leitura do endereço da escola
-			fread(&(vTotal->vetRegistro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
-			int tamEndereco = vTotal->vetRegistro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
-			vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
-			fread(&(vTotal->vetRegistro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
+			fread(&(vTotal->registro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
+			int tamEndereco = vTotal->registro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
+			vTotal->registro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
+			fread(&(vTotal->registro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
 
 			count++; //incrementa a posição do vetor vTotal
 			if(count == buffer){ //verifica se é necessário dar realloc
@@ -259,7 +284,7 @@ void RecuperaRegistrosDataFinal(FILE *fp, char* valor){
 	int count = 0;
 
 	VETREGISTROS *vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)*buffer);
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
 
 	while(feof(fp) != 0){
 
@@ -270,29 +295,29 @@ void RecuperaRegistrosDataFinal(FILE *fp, char* valor){
 			continue;
 		}
 	
-		fread(&(vTotal->vetRegistro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
-		fread(&(vTotal->vetRegistro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
-		fread(&(vTotal->vetRegistro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFinal
+		fread(&(vTotal->registro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
+		fread(&(vTotal->registro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
+		fread(&(vTotal->registro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFinal
 
-		if(strcmp(valor, vTotal->vetRegistro[count]->dataFinal) == 0){  //verifica se o data final da escola é a procurado pelo usuário		
+		if(strcmp(valor, vTotal->registro[count]->dataFinal) == 0){  //verifica se o data final da escola é a procurado pelo usuário		
 	
 			//leitura do nome da escola
-			fread(&(vTotal->vetRegistro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
-			int tamNome =  vTotal->vetRegistro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
-			vTotal->vetRegistro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
-			fread(&(vTotal->vetRegistro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
+			fread(&(vTotal->registro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
+			int tamNome =  vTotal->registro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
+			vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
+			fread(&(vTotal->registro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
 
 			//leitura do municipio da escola
-			fread(&(vTotal->vetRegistro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
-			int tamMunicipio =  vTotal->vetRegistro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
-			vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
-			fread(&(vTotal->vetRegistro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
+			fread(&(vTotal->registro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
+			int tamMunicipio =  vTotal->registro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
+			vTotal->registro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
+			fread(&(vTotal->registro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
 
 			//leitura do endereço da escola
-			fread(&(vTotal->vetRegistro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
-			int tamEndereco = vTotal->vetRegistro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
-			vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
-			fread(&(vTotal->vetRegistro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
+			fread(&(vTotal->registro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
+			int tamEndereco = vTotal->registro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
+			vTotal->registro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
+			fread(&(vTotal->registro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
 
 			count++; //incrementa a posição do vetor vTotal
 			if(count == buffer){ //verifica se é necessário dar realloc
@@ -326,7 +351,7 @@ void RecuperaRegistrosNomeEscola(FILE *fp, char* valor){
 	int count = 0;
 
 	VETREGISTROS *vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)*buffer);
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
 
 	while(feof(fp) != 0){
 
@@ -337,29 +362,29 @@ void RecuperaRegistrosNomeEscola(FILE *fp, char* valor){
 			continue;
 		}
 	
-		fread(&(vTotal->vetRegistro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
-		fread(&(vTotal->vetRegistro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
-		fread(&(vTotal->vetRegistro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFinal
+		fread(&(vTotal->registro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
+		fread(&(vTotal->registro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
+		fread(&(vTotal->registro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFinal
 		
 		//leitura do nome da escola
-		fread(&(vTotal->vetRegistro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
-		int tamNome =  vTotal->vetRegistro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
-		vTotal->vetRegistro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
-		fread(&(vTotal->vetRegistro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
+		fread(&(vTotal->registro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
+		int tamNome =  vTotal->registro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
+		vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
+		fread(&(vTotal->registro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
 
-		if(strcmp(valor, vTotal->vetRegistro[count]->nomeEscola) == 0){  //verifica se o nome da escola é a procurado pelo usuário		
+		if(strcmp(valor, vTotal->registro[count]->nomeEscola) == 0){  //verifica se o nome da escola é a procurado pelo usuário		
 	
 			//leitura do municipio da escola
-			fread(&(vTotal->vetRegistro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
-			int tamMunicipio =  vTotal->vetRegistro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
-			vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
-			fread(&(vTotal->vetRegistro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
+			fread(&(vTotal->registro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
+			int tamMunicipio =  vTotal->registro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
+			vTotal->registro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
+			fread(&(vTotal->registro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
 
 			//leitura do endereço da escola
-			fread(&(vTotal->vetRegistro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
-			int tamEndereco = vTotal->vetRegistro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
-			vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
-			fread(&(vTotal->vetRegistro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
+			fread(&(vTotal->registro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
+			int tamEndereco = vTotal->registro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
+			vTotal->registro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
+			fread(&(vTotal->registro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
 
 			count++; //incrementa a posição do vetor vTotal
 			if(count == buffer){ //verifica se é necessário dar realloc
@@ -389,7 +414,7 @@ void RecuperaRegistrosMunicipio(FILE *fp, char* valor){
 	int count = 0;
 
 	VETREGISTROS *vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)*buffer);
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
 
 	while(feof(fp) != 0){
 
@@ -400,29 +425,29 @@ void RecuperaRegistrosMunicipio(FILE *fp, char* valor){
 			continue;
 		}
 	
-		fread(&(vTotal->vetRegistro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
-		fread(&(vTotal->vetRegistro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
-		fread(&(vTotal->vetRegistro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFinal
+		fread(&(vTotal->registro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
+		fread(&(vTotal->registro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
+		fread(&(vTotal->registro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFinal
 		
 		//leitura do nome da escola
-		fread(&(vTotal->vetRegistro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
-		int tamNome =  vTotal->vetRegistro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
-		vTotal->vetRegistro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
-		fread(&(vTotal->vetRegistro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
+		fread(&(vTotal->registro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
+		int tamNome =  vTotal->registro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
+		vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
+		fread(&(vTotal->registro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
 
 		//leitura do municipio da escola
-		fread(&(vTotal->vetRegistro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
-		int tamMunicipio =  vTotal->vetRegistro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
-		vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
-		fread(&(vTotal->vetRegistro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
+		fread(&(vTotal->registro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
+		int tamMunicipio =  vTotal->registro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
+		vTotal->registro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
+		fread(&(vTotal->registro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
 
-		if(strcmp(valor, vTotal->vetRegistro[count]->municipio) == 0){  //verifica se o municipio da escola é a procurado pelo usuário		
+		if(strcmp(valor, vTotal->registro[count]->municipio) == 0){  //verifica se o municipio da escola é a procurado pelo usuário		
 	
 			//leitura do endereço da escola
-			fread(&(vTotal->vetRegistro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
-			int tamEndereco = vTotal->vetRegistro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
-			vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
-			fread(&(vTotal->vetRegistro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
+			fread(&(vTotal->registro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
+			int tamEndereco = vTotal->registro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
+			vTotal->registro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
+			fread(&(vTotal->registro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
 
 			count++; //incrementa a posição do vetor vTotal
 			if(count == buffer){ //verifica se é necessário dar realloc
@@ -448,7 +473,7 @@ void RecuperaRegistrosEndereco(FILE *fp, char* valor){
 	int count = 0;
 
 	VETREGISTROS *vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)*buffer);
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
 
 	while(feof(fp) != 0){
 
@@ -459,29 +484,29 @@ void RecuperaRegistrosEndereco(FILE *fp, char* valor){
 			continue;
 		}
 	
-		fread(&(vTotal->vetRegistro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
-		fread(&(vTotal->vetRegistro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
-		fread(&(vTotal->vetRegistro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFinal
+		fread(&(vTotal->registro[count]->codEscola), 1, sizeof(int), fp); //lê o código da escola e salva no vetRegistro[count].codEscola 
+		fread(&(vTotal->registro[count]->dataInicio), 1, 10, fp); //lê a data de início e salva no vetRegistro[count].dataInicio
+		fread(&(vTotal->registro[count]->dataFinal), 1, 10, fp); //lê a data final e salva no vetRegistro[count].dataFinal
 		
 		//leitura do nome da escola
-		fread(&(vTotal->vetRegistro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
-		int tamNome =  vTotal->vetRegistro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
-		vTotal->vetRegistro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
-		fread(&(vTotal->vetRegistro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
+		fread(&(vTotal->registro[count]->tamNome), 1, sizeof(int), fp); //lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
+		int tamNome =  vTotal->registro[count]->tamNome; //quantidade de memória que precisa ser alocada pra o vetor nomeEscola
+		vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome); //aloca memória para o vetor nomeEscola
+		fread(&(vTotal->registro[count]->nomeEscola), 1, tamNome, fp); //lê o nome da escola e salva no vetRegistro[count].nomeEscola
 
 		//leitura do municipio da escola
-		fread(&(vTotal->vetRegistro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
-		int tamMunicipio =  vTotal->vetRegistro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
-		vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
-		fread(&(vTotal->vetRegistro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
+		fread(&(vTotal->registro[count]->tamMunicipio), 1, sizeof(int), fp); //lê o tamanho do registro do municipio da escola e salva no vetRegistro[count].municipio	
+		int tamMunicipio =  vTotal->registro[count]->tamMunicipio; //quantidade de memória que precisa ser alocada pra o vetor municipio
+		vTotal->registro[count]->municipio = (char*) malloc(sizeof(char) * tamMunicipio); //aloca memória para o vetor municipio
+		fread(&(vTotal->registro[count]->municipio), 1, tamMunicipio, fp); //lê o nome da escola e salva no vetRegistro[count].municipio
 
 		//leitura do endereço da escola
-		fread(&(vTotal->vetRegistro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
-		int tamEndereco = vTotal->vetRegistro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
-		vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
-		fread(&(vTotal->vetRegistro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
+		fread(&(vTotal->registro[count]->tamEndereco), 1, sizeof(int), fp); //lê o tamanho do registro de endereco da escola e salva no vetRegistro[count].endereco		
+		int tamEndereco = vTotal->registro[count]->tamEndereco; //quantidade de memória que precisa ser alocada pra o vetor endereco
+		vTotal->registro[count]->endereco = (char*) malloc(sizeof(char) * tamEndereco); //aloca memória para o vetor nomeEscola
+		fread(&(vTotal->registro[count]->endereco), 1, tamEndereco, fp); //lê o nome da escola e salva no vetRegistro[count].endereco
 
-		if(strcmp(valor, vTotal->vetRegistro[count]->endereco) == 0){  //verifica se o endereço da escola é a procurado pelo usuário		
+		if(strcmp(valor, vTotal->registro[count]->endereco) == 0){  //verifica se o endereço da escola é a procurado pelo usuário		
 
 			count++; //incrementa a posição do vetor vTotal
 			if(count == buffer){ //verifica se é necessário dar realloc
@@ -509,10 +534,10 @@ VETREGISTROS* RecuperaTodosRegistros()
 	int count=0; // realloc do vetor de registros
 	at = (REGISTRO*) malloc(sizeof(REGISTRO)*buffer); // registro do momento que está sendo lido (Registro horizontal)
 
-	//vTotal->vetRegistro[0] = at; // vetRegistro (pertence ao vTotal)s
+	//vTotal->registro[0] = at; // vetRegistro (pertence ao vTotal)s
 
 	vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)); // vTotal é uma struct, logo aloca-se uma struct
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer); // ** é para aumentar verticalment
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer); // ** é para aumentar verticalment
 					
 
 	while(feof(fp)!=0)
@@ -526,29 +551,29 @@ VETREGISTROS* RecuperaTodosRegistros()
 			Por alterar pressupoe-se ler o valor daquela linha do arquivo
 			Altera o registro da linha atual (linha atual = count)
 		*/
-		fread(&(vTotal->vetRegistro[count]->dataInicio),1,10,fp); //Vetor de registro na posição count da struct vai receber o valor da data de inicio
-		fread(&(vTotal->vetRegistro[count]->dataFinal),1,10,fp);// Data Final
+		fread(&(vTotal->registro[count]->dataInicio),1,10,fp); //Vetor de registro na posição count da struct vai receber o valor da data de inicio
+		fread(&(vTotal->registro[count]->dataFinal),1,10,fp);// Data Final
 		
-		fread(&(vTotal->vetRegistro[count]->tamNome),1,4,fp); // Aqui tem o tamanho do nome da escola que vai ser lida (Alocada)
-		int Tamanho_Nome = vTotal->vetRegistro[count]->tamNome;
-		vTotal->vetRegistro[count]->nomeEscola = (char*) malloc(sizeof(char)*Tamanho_Nome); // Criei um espaço do tamanho do nome para usar no fread
-		fread(&(vTotal->vetRegistro[count]->nomeEscola),1,Tamanho_Nome,fp); // Leio o nome da Escola 
+		fread(&(vTotal->registro[count]->tamNome),1,4,fp); // Aqui tem o tamanho do nome da escola que vai ser lida (Alocada)
+		int Tamanho_Nome = vTotal->registro[count]->tamNome;
+		vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char)*Tamanho_Nome); // Criei um espaço do tamanho do nome para usar no fread
+		fread(&(vTotal->registro[count]->nomeEscola),1,Tamanho_Nome,fp); // Leio o nome da Escola 
 
-		fread(&(vTotal->vetRegistro[count]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
-		int Tamanho_Municipio = vTotal->vetRegistro[count]->tamMunicipio ;
-		vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); // Aloquei para o nome do município o tamanho descoberto na palavra anterior
-		fread(&(vTotal->vetRegistro[count]->municipio),1,Tamanho_Municipio,fp);
+		fread(&(vTotal->registro[count]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
+		int Tamanho_Municipio = vTotal->registro[count]->tamMunicipio ;
+		vTotal->registro[count]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); // Aloquei para o nome do município o tamanho descoberto na palavra anterior
+		fread(&(vTotal->registro[count]->municipio),1,Tamanho_Municipio,fp);
 
-		fread(&(vTotal->vetRegistro[count]->tamEndereco),1,4,fp);
-		int Tamanho_Endereco = vTotal->vetRegistro[count]->tamEndereco;
-		vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
-		fread(&(vTotal->vetRegistro[count]->endereco),1,Tamanho_Endereco,fp);
+		fread(&(vTotal->registro[count]->tamEndereco),1,4,fp);
+		int Tamanho_Endereco = vTotal->registro[count]->tamEndereco;
+		vTotal->registro[count]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
+		fread(&(vTotal->registro[count]->endereco),1,Tamanho_Endereco,fp);
 
 		if(count == buffer)
 		{
 			buffer+=10;
-			vTotal-> vetRegistro = (REGISTRO**)realloc(vTotal->vetRegistro,buffer);
-			vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
+			vTotal->registro = (REGISTRO**)realloc(vTotal->registro,buffer);
+			vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
 		}
 		count++;
 
