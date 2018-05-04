@@ -58,7 +58,7 @@ void RecuperaRegistrosCodEscola(FILE *fp, char* valor){
 
 		fread(&regExiste, sizeof(char), 1 , fp); //lê o byte com o status do registro, 0 é registro válido
 		
-		if(strcmp(&regExiste, "1") == 1){
+		if(regExiste == '1'){
 			printf(ERRO_REGISTRO);
 			continue;
 		}
@@ -430,9 +430,18 @@ VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
 
 		
 	FILE* fp = fopen(ARQUIVO_SAIDA, "rb");
+	int arqExiste;
+	
 
-	fseek(fp, 5, SEEK_SET);
-			
+	fread(&regExiste, 1, 1, fp);
+
+	if(arqExiste == '0'){  //arquivo inconsistente 
+		printf(ERRO_GERAL);
+		return;
+	}
+	
+	fseek(fp, 4, SEEK_SET); //consome o topo da pilha
+
 	if(strcmp(nomeDoCampo, "codEscola") == 0)	
 		RecuperaRegistrosCodEscola(fp, valor);
 	else if(strcmp(nomeDoCampo, "dataInicio") == 0)
