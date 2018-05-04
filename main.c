@@ -747,7 +747,7 @@ VETREGISTROS* RecuperaTodosRegistros()
 	
  // registro do momento que está sendo lido (Registro horizontal)
 	vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)); // vTotal é uma struct, logo aloca-se uma struct
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer); // ** é para aumentar verticalment
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer); // ** é para aumentar verticalment
 	
 	char existealgo;
 	fread(&(existealgo),1,1,fp);
@@ -770,24 +770,24 @@ VETREGISTROS* RecuperaTodosRegistros()
 		*/
 		
 		//Vetor de registro na posição count da struct vai receber o valor da data de inicio
-		fread(&(vTotal->vetRegistro[count]->dataInicio),1,10,fp);
-		fread(&(vTotal->vetRegistro[count]->dataFinal),1,10,fp);// Data Final
+		fread(&(vTotal->registro[count]->dataInicio),1,10,fp);
+		fread(&(vTotal->registro[count]->dataFinal),1,10,fp);// Data Final
 		
 		fread(&(vTotal->registro[count]->tamNome),1,4,fp); // Aqui tem o tamanho do nome da escola que vai ser lida (Alocada)
 		int Tamanho_Nome = vTotal->registro[count]->tamNome;
 		vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char)*Tamanho_Nome); // Criei um espaço do tamanho do nome para usar no fread
 		fread(&(vTotal->registro[count]->nomeEscola),1,Tamanho_Nome,fp); // Leio o nome da Escola 
 
-		fread(&(vTotal->vetRegistro[count]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
-		int Tamanho_Municipio = vTotal->vetRegistro[count]->tamMunicipio ;
+		fread(&(vTotal->registro[count]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
+		int Tamanho_Municipio = vTotal->registro[count]->tamMunicipio ;
 		// Aloquei para o nome do município o tamanho descoberto na palavra anterior
-		vTotal->vetRegistro[count]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); 
-		fread(&(vTotal->vetRegistro[count]->municipio),1,Tamanho_Municipio,fp);
+		vTotal->registro[count]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); 
+		fread(&(vTotal->registro[count]->municipio),1,Tamanho_Municipio,fp);
 
-		fread(&(vTotal->vetRegistro[count]->tamEndereco),1,4,fp);
-		int Tamanho_Endereco = vTotal->vetRegistro[count]->tamEndereco;
-		vTotal->vetRegistro[count]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
-		fread(&(vTotal->vetRegistro[count]->endereco),1,Tamanho_Endereco,fp);
+		fread(&(vTotal->registro[count]->tamEndereco),1,4,fp);
+		int Tamanho_Endereco = vTotal->registro[count]->tamEndereco;
+		vTotal->registro[count]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
+		fread(&(vTotal->registro[count]->endereco),1,Tamanho_Endereco,fp);
 
 		if(count == buffer)
 		{
@@ -831,7 +831,7 @@ VETREGISTROS* RecuperaRegistroPorRRN(int RRN)
 
 	VETREGISTROS *vTotal;
 	vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)); // vTotal é uma struct, logo aloca-se uma struct
-	vTotal->vetRegistro = (REGISTRO**) malloc(sizeof(REGISTRO*)); // ** é para aumentar verticalment
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)); // ** é para aumentar verticalment
 
 
 	char existealgo;
@@ -851,24 +851,24 @@ VETREGISTROS* RecuperaRegistroPorRRN(int RRN)
 	if(existe < 0) 
 		return vTotal;
 
-	fread(vTotal->vetRegistro[0]->dataInicio,1,10,fp);
-	fread(&(vTotal->vetRegistro[0]->dataFinal),1,10,fp);// Data Final
+	fread(vTotal->registro[0]->dataInicio,1,10,fp);
+	fread(&(vTotal->registro[0]->dataFinal),1,10,fp);// Data Final
 
-	fread(&(vTotal->vetRegistro[0]->tamNome),1,4,fp);
-	int Tamanho_Nome = vTotal->vetRegistro[0]->tamNome;
-	vTotal->vetRegistro[0]->nomeEscola = (char*) malloc(sizeof(char)*Tamanho_Nome); // Criei um espaço do tamanho do nome para usar no fread
-	fread(&(vTotal->vetRegistro[0]->nomeEscola),1,Tamanho_Nome,fp);
+	fread(&(vTotal->registro[0]->tamNome),1,4,fp);
+	int Tamanho_Nome = vTotal->registro[0]->tamNome;
+	vTotal->registro[0]->nomeEscola = (char*) malloc(sizeof(char)*Tamanho_Nome); // Criei um espaço do tamanho do nome para usar no fread
+	fread(&(vTotal->registro[0]->nomeEscola),1,Tamanho_Nome,fp);
 	
 
-	fread(&(vTotal->vetRegistro[0]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
-	int Tamanho_Municipio = vTotal->vetRegistro[0]->tamMunicipio ;// Aloquei para o nome do município o tamanho descoberto na palavra anterior
-	vTotal->vetRegistro[0]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); 
-	fread(&(vTotal->vetRegistro[0]->municipio),1,Tamanho_Municipio,fp);
+	fread(&(vTotal->registro[0]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
+	int Tamanho_Municipio = vTotal->registro[0]->tamMunicipio ;// Aloquei para o nome do município o tamanho descoberto na palavra anterior
+	vTotal->registro[0]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); 
+	fread(&(vTotal->registro[0]->municipio),1,Tamanho_Municipio,fp);
 
-	fread(&(vTotal->vetRegistro[0]->tamEndereco),1,4,fp);
-	int Tamanho_Endereco = vTotal->vetRegistro[0]->tamEndereco;
-	vTotal->vetRegistro[0]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
-	fread(&(vTotal->vetRegistro[0]->endereco),1,Tamanho_Endereco,fp);
+	fread(&(vTotal->registro[0]->tamEndereco),1,4,fp);
+	int Tamanho_Endereco = vTotal->registro[0]->tamEndereco;
+	vTotal->registro[0]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
+	fread(&(vTotal->registro[0]->endereco),1,Tamanho_Endereco,fp);
 	return vTotal;
 	fclose(fp);
 }
