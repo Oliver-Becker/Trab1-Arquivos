@@ -8,6 +8,7 @@
 #define TAMANHO_CABECALHO 5
 #define TAMANHO_REGISTRO 112
 #define BYTE_OFFSET(RRN) ((4 + TAMANHO_REGISTRO) * RRN) + TAMANHO_CABECALHO
+#define STR_VAZIO ""
 
 typedef struct {
 	int codEscola;
@@ -49,6 +50,7 @@ void ConfereConsistenciaDoArquivo(char* nomeArquivo) {
 
 	char status;
 	fread(&status, sizeof(status), 1, fp);
+	fclose(fp);
 	if (status == 1) 
 		return;
 
@@ -60,17 +62,13 @@ void CriaArquivoDeSaida(char* nomeArquivo) {
 	if (nomeArquivo == NULL)
 		return;
 
-	FILE* fp = fopen(nomeArquivo, "wb");
+	FILE* fp = fopen(nomeArquivo, "wb+");
 	char status = 0;
 	int topoPilha = -1;
 	fwrite(&status, sizeof(status), 1, fp);
 	fwrite(&topoPilha, sizeof(topoPilha), 1, fp);
 
-	topoPilha = 324;
-	printf("topoPilha antes: %d\n", topoPilha);
-	fseek(fp, 1, SEEK_SET);
-	fread(&topoPilha, 4, 1, fp);
-	printf("topo DEPOISS: %d\n", topoPilha);
+	fclose(fp);
 }
 
 void AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro) {
@@ -78,43 +76,50 @@ void AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro) {
 		return;
 
 	FILE* fp = fopen(nomeArquivo, "ab");
-	printf("inserindo registro %d da escola %s\n", registro->codEscola, registro->nomeEscola);
-	printf("ftell no começo%ld\n", ftell(fp));
-
-	fseek(fp, 0, SEEK_END);
-
 	int registroRemovido = 0;
-	printf("%ld ", ftell(fp));
+
 	fwrite(&registroRemovido, sizeof(registroRemovido), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(&registro->codEscola, sizeof(registro->codEscola), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->dataInicio, sizeof(char), strlen(registro->dataInicio), fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->dataFinal, sizeof(char), strlen(registro->dataFinal), fp);
-	printf("%ld ", ftell(fp));
 	fwrite(&registro->tamNome, sizeof(registro->tamNome), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(&registro->tamEndereco, sizeof(registro->tamEndereco), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(&registro->tamMunicipio, sizeof(registro->tamMunicipio), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
-	printf("%ld ", ftell(fp));
 
 	int bytesRestantes = TAMANHO_REGISTRO;
 	bytesRestantes -= 36 + registro->tamNome + registro->tamEndereco + registro->tamMunicipio;
 
 	char* finalDoRegistro = (char*)malloc(sizeof(char) * bytesRestantes);
 	fwrite(finalDoRegistro, sizeof(char), bytesRestantes, fp);
-	printf("ftell FINALLL: %ld\n", ftell(fp));
+
+	free(finalDoRegistro);
+	fclose(fp);
 }
 
 void SubstituiRegistro(char* nomeArquivo, REGISTRO* registro, int byteOffset) {
+	if (nomeArquivo == NULL || registro == NULL)
+		return;
+
+	FILE* fp = fopen(nomeArquivo, "rb+");
+	int registroRemovido = 0;
+
+	fseek(fp, byteOffset, SEEK_SET);
+
+	fwrite(&registroRemovido, sizeof(registroRemovido), 1, fp);
+	fwrite(&registro->codEscola, sizeof(registro->codEscola), 1, fp);
+	fwrite(registro->dataInicio, sizeof(char), strlen(registro->dataInicio), fp);
+	fwrite(registro->dataFinal, sizeof(char), strlen(registro->dataFinal), fp);
+	fwrite(&registro->tamNome, sizeof(registro->tamNome), 1, fp);
+	fwrite(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
+	fwrite(&registro->tamEndereco, sizeof(registro->tamEndereco), 1, fp);
+	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
+	fwrite(&registro->tamMunicipio, sizeof(registro->tamMunicipio), 1, fp);
+	fwrite(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
+
+	fclose(fp);
 }
 
 void InsereRegistro(char* nomeArquivo, REGISTRO* registro) {
@@ -144,40 +149,49 @@ void InsereVetorDeRegistros(char* nomeArquivo, VETREGISTROS* vetRegistros) {
 }
 
 VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
-	FILE* fp = fopen(nomeArquivo, "r");
-	if (fp == NULL) {
+	if (nomeArquivo == NULL) {
 		printf(ERRO_GERAL);
 		return NULL;
 	}
 
+	FILE* fp = fopen(nomeArquivo, "r");	// Abre o arquivo de entrada no modo de leitura.
+	if (fp == NULL) {			// Caso o arquivo não exista, imprime erro.
+		printf(ERRO_GERAL);
+		return NULL;
+	}
+
+	// Aloca espaço para o VETREGISTROS que será retornado pela função.
 	VETREGISTROS* vetRegistros = (VETREGISTROS*) calloc(1, sizeof(VETREGISTROS));
-	REGISTRO* registro;
+	REGISTRO* registro; 	// Variável de registro auxiliar.
 
-	int counter = 0;
-	char* string[6];
+	int counter = 0; 	// Contador auxiliar para saber quantos registros já foram lidos.
+	char* string[6];	// Strings para armazenarem os campos lidos do arquivo de entrada.
 
+	// Loop para ler todos os registros até que encontre o fim do arquivo.
 	while (fscanf(fp, "%m[^;\n]", &string[0]) != EOF) {
-		for (int i = 1; i < 6; ++i)
-			fscanf(fp, "%*c%m[^;\n]", &string[i]);
-		fgetc(fp);
+		for (int i = 1; i < 6; ++i)			// Caso o registro exista, lê os 5
+			fscanf(fp, "%*c%m[^;\n]", &string[i]);		// campos restantes.
+		fgetc(fp);					// Consome o \n.
 
+		// Vai aumentando o espaço do vetor de registros conforme é lido da entrada.
 		vetRegistros->registro = (REGISTRO**)realloc(vetRegistros->registro, 
 				sizeof(REGISTRO*) * (++vetRegistros->numElementos));
 
+		// Aloca espaço para o registro que será anexado ao vetor.
 		registro = (REGISTRO*)malloc(sizeof(REGISTRO));
-/*		for (int i = 0; i < 6; ++i)
-			printf(" %s |", string[i]);
-		printf("\n");
-*/
+
+		// Atribui para cada campo da struct o valor correspondente, com base na ordem de
+		// leitura dos campos do arquivo de entrada.
 		registro->codEscola = atoi(string[0]);
+		// Caso o campo seja vazio (string null), atribui a string de zeros para o campo.
 		strcpy(registro->dataInicio, (string[4] != NULL) ? string[4] : "0000000000");
 		strcpy(registro->dataFinal, (string[5] != NULL) ? string[5] : "0000000000");
 		registro->tamNome = (string[1] != NULL) ? strlen(string[1]) : 0;
-		registro->nomeEscola = string[1];
+		registro->nomeEscola = (string[1] != NULL) ? string[1] : STR_VAZIO;
 		registro->tamMunicipio = (string[2] != NULL) ? strlen(string[2]) : 0;
-		registro->municipio = string[2];
+		registro->municipio = (string[2] != NULL) ? string[2] : STR_VAZIO;
 		registro->tamEndereco = (string[3] != NULL) ? strlen(string[3]) : 0;
-		registro->endereco = string[3];
+		registro->endereco = (string[3] != NULL) ? string[3] : STR_VAZIO;
 
 		vetRegistros->registro[counter++] = registro;
 
