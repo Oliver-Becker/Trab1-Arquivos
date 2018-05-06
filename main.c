@@ -156,11 +156,11 @@ void LiberaRegistro(REGISTRO* registro) {
 	if (registro == NULL)
 		return;
 
-	if (registro->nomeEscola != NULL && registro->nomeEscola != CAMPO_VAZIO)
+	if (registro->nomeEscola != NULL && strcmp(registro->nomeEscola, CAMPO_VAZIO))
 		free(registro->nomeEscola);
-	if (registro->municipio != NULL && registro->municipio != CAMPO_VAZIO)
+	if (registro->municipio != NULL && strcmp(registro->municipio, CAMPO_VAZIO))
 		free(registro->municipio);
-	if (registro->endereco != NULL && registro->endereco != CAMPO_VAZIO)
+	if (registro->endereco != NULL && strcmp(registro->endereco, CAMPO_VAZIO))
 		free(registro->endereco);
 
 	free(registro);
