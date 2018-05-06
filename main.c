@@ -2,9 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define QUANTIDADE_ARGUMENTOS {3, 2, 4, 3, 3, 8, 9, 2, 2}
 #define ERRO_GERAL "Falha no carregamento do arquivo.\n"
 #define ERRO_REGISTRO "Registro inexistente.\n"
 #define ARQUIVO_SAIDA "saida.bin"
+#define ARQUIVO_DESFRAGMENTADO "desfragmentacao.bin"
 #define TAMANHO_CABECALHO 5
 #define TAMANHO_REGISTRO 112
 #define BYTE_OFFSET(RRN) ((4 + TAMANHO_REGISTRO) * RRN) + TAMANHO_CABECALHO
@@ -33,6 +35,9 @@ void AlteraStatusDoArquivo(char* nomeArquivo, char status) {
 		return;
 
 	FILE* fp = fopen(ARQUIVO_SAIDA, "rb+");
+	if (fp == NULL)
+		return;
+
 	fwrite(&status, sizeof(status), 1, fp);
 	fclose(fp);
 }
@@ -40,13 +45,13 @@ void AlteraStatusDoArquivo(char* nomeArquivo, char status) {
 void ConfereConsistenciaDoArquivo(char* nomeArquivo) {
 	if (nomeArquivo == NULL) {
 		printf(ERRO_GERAL);
-		exit(1);
+		exit(-3);
 	}
 
 	FILE* fp = fopen(nomeArquivo, "rb");
 	if (fp == NULL) {
 		printf(ERRO_GERAL);
-		exit(1);
+		exit(-3);
 	}
 
 	char status;
@@ -56,7 +61,7 @@ void ConfereConsistenciaDoArquivo(char* nomeArquivo) {
 		return;
 
 	printf(ERRO_GERAL);
-	exit(1);
+	exit(-3);
 }
 
 // Função para criar um novo arquivo de saída, já inserindo o cabeçalho.
@@ -96,6 +101,11 @@ void AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro) {
 
 	char* finalDoRegistro = (char*)malloc(sizeof(char) * bytesRestantes);
 	fwrite(finalDoRegistro, sizeof(char), bytesRestantes, fp);
+
+	REGISTRO* r = registro;
+	printf("%d %s %s %d %s %d %s %d %s\n", r->codEscola, r->dataInicio, r->dataFinal,
+		r->tamNome, r->nomeEscola, r->tamMunicipio, r->municipio, r->tamEndereco,
+		r->endereco);
 
 	free(finalDoRegistro);
 	fclose(fp);
@@ -141,13 +151,51 @@ void InsereRegistro(char* nomeArquivo, REGISTRO* registro) {
 		SubstituiRegistro(nomeArquivo, registro, BYTE_OFFSET(topoPilha));
 }
 
-void InsereVetorDeRegistros(char* nomeArquivo, VETREGISTROS* vetRegistros) {
-	if (nomeArquivo == NULL || vetRegistros == NULL)
+void LiberaRegistro(REGISTRO* registro) {
+	if (registro == NULL)
 		return;
+
+	if (registro->nomeEscola != NULL && registro->nomeEscola != CAMPO_VAZIO)
+		free(registro->nomeEscola);
+	if (registro->municipio != NULL && registro->municipio != CAMPO_VAZIO)
+		free(registro->municipio);
+	if (registro->endereco != NULL && registro->endereco != CAMPO_VAZIO)
+		free(registro->endereco);
+
+	free(registro);
+	registro = NULL;
+}
+
+void LiberaVetorDeRegistros(VETREGISTROS* vetRegistros) {
+	if (vetRegistros == NULL)
+		return;
+
+	for (int i = 0; i < vetRegistros->numElementos; ++i)
+		LiberaRegistro(vetRegistros->registro[i]);
+
+	free(vetRegistros->registro);
+	free(vetRegistros);
+	vetRegistros = NULL;
+}
+
+void InsereVetorDeRegistros(char* nomeArquivo, VETREGISTROS* vetRegistros) {
+	if (nomeArquivo == NULL)
+		return;
+
+	if (vetRegistros == NULL || vetRegistros->numElementos == 0) {
+		printf(ERRO_REGISTRO);
+		exit(1);
+	}
+
+	AlteraStatusDoArquivo(ARQUIVO_SAIDA, 0);
 
 	for (int i = 0; i < vetRegistros->numElementos; ++i) {
 		InsereRegistro(nomeArquivo, vetRegistros->registro[i]);
 	}
+
+	LiberaVetorDeRegistros(vetRegistros);
+
+	AlteraStatusDoArquivo(ARQUIVO_SAIDA, 1);
 }
 
 VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
@@ -204,26 +252,15 @@ VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
 		if (string[5] != NULL) free(string[5]);
 	}
 
-	REGISTRO* r;
+	/*REGISTRO* r;
 	for (int i = 0; i < vetRegistros->numElementos; ++i) {
 		r = vetRegistros->registro[i];
 		printf("%d %s %s %d %s %d %s %d %s\n", r->codEscola, r->dataInicio, r->dataFinal,
 			r->tamNome, r->nomeEscola, r->tamMunicipio, r->municipio, r->tamEndereco,
 			r->endereco);
-	}
+	}*/
 	//printf("tamanho do vetor de registros: %d\n", vetRegistros->numElementos);
 
-// free do vetor de registros
-/*	for (int i = 0; i < vetRegistros->numElementos; ++i) {
-		r = vetRegistros->registro[i];
-		if (r->nomeEscola != NULL) free(r->nomeEscola);
-		if (r->municipio != NULL) free(r->municipio);
-		if (r->endereco != NULL) free(r->endereco);
-		free(r);
-	}
-	free(vetRegistros->registro);
-	free(vetRegistros);
-*/
 	fclose(fp);
 
 	return vetRegistros;
@@ -940,6 +977,19 @@ void AtualizaRegistroPorRRN(char* campos[], int RRN) {
 }
 
 void DesfragmentaArquivoDeDados() {
+	CriaArquivoDeSaida(ARQUIVO_DESFRAGMENTADO);
+	VETREGISTROS* vetRegistros = RecuperaTodosRegistros();
+	printf("AKIII\n");
+	InsereVetorDeRegistros(ARQUIVO_DESFRAGMENTADO, vetRegistros);
+	printf("AKIII\n");
+	if (remove(ARQUIVO_SAIDA)) {		// Remove o antigo arquivo de saída.
+		printf(ERRO_GERAL);
+		exit(-8);
+	}
+	if (rename(ARQUIVO_DESFRAGMENTADO, ARQUIVO_SAIDA)) {	// Muda o nome do novo arquivo para
+		printf(ERRO_GERAL);					// o do antigo.
+		exit(-8);
+	}
 }
 
 int* RecuperaRRNLogicamenteRemovidos() {
@@ -948,7 +998,7 @@ int* RecuperaRRNLogicamenteRemovidos() {
 void ConfereEntrada(int argc, int valorEsperado) {
 	if (argc != valorEsperado) {
 		printf(ERRO_GERAL);
-		exit(1);
+		exit(-2);
 	}
 }
 
@@ -986,9 +1036,8 @@ REGISTRO* LeRegistroDaEntrada(char* campo[]) {
 }
 int main(int argc, char *argv[]){
 
-	if (argc < 2) {
-		printf("ERRO! Utilização do programa: %s <código-op(numero entre 1 e 9)>", argv[0]);
-		printf(" <argumentos-da-operação>\n");
+	if (argc < 2 || atoi(argv[1]) < 1 || atoi(argv[1]) > 9) {
+		printf(ERRO_GERAL);
 		return -1;
 	}
 
@@ -996,47 +1045,48 @@ int main(int argc, char *argv[]){
 	REGISTRO* registro = NULL;
 	int* vetPilha = NULL;
 
+	int quantidadeArgumentos[9] = QUANTIDADE_ARGUMENTOS;
+	ConfereEntrada(argc, quantidadeArgumentos[atoi(argv[1]) - 1]);
+
 	switch (atoi(argv[1])) {
 		case 1:
-			ConfereEntrada(argc, 3);
 			vetRegistros = LeituraArquivoDeEntrada(argv[2]);
 			CriaArquivoDeSaida(ARQUIVO_SAIDA);
 			InsereVetorDeRegistros(ARQUIVO_SAIDA, vetRegistros);
+
+			printf("Arquivo carregado.\n");
 			break;
 		case 2:
-			ConfereEntrada(argc, 2);
 			vetRegistros = RecuperaTodosRegistros();
 			ImprimeRegistros(vetRegistros);
 			break;
 		case 3:
-			ConfereEntrada(argc, 4);
 			vetRegistros = RecuperaRegistrosPorCampo(argv[2], argv[3]);
 			ImprimeRegistros(vetRegistros);
 			break;
 		case 4:
-			ConfereEntrada(argc, 3);
 			vetRegistros = RecuperaRegistroPorRRN(atoi(argv[2]));
 			ImprimeRegistros(vetRegistros);
 			break;
 		case 5:
-			ConfereEntrada(argc, 3);
 			RemocaoLogicaPorRRN(atoi(argv[2]));
 			break;
 		case 6:
-			ConfereEntrada(argc, 8);
+			ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
 			registro = LeRegistroDaEntrada(argv+2);
 			InsereRegistro(ARQUIVO_SAIDA, registro);
+
+			printf("Registro inserido com sucesso.\n");
 			break;
 		case 7:
-			ConfereEntrada(argc, 9);
 			AtualizaRegistroPorRRN(argv+3, atoi(argv[2]));
 			break;
 		case 8:
-			ConfereEntrada(argc, 2);
+			ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
 			DesfragmentaArquivoDeDados();
+			printf("Arquivo de dados compactado com sucesso.\n");
 			break;
 		case 9:
-			ConfereEntrada(argc, 2);
 			vetPilha = RecuperaRRNLogicamenteRemovidos();
 			ImprimeVetor(vetPilha);
 			break;
