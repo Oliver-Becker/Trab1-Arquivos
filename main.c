@@ -898,9 +898,14 @@ VETREGISTROS* RecuperaRegistroPorRRN(int RRN)
 		return  vTotal;
 	}
 
-	fseek(fp,4,SEEK_SET); // pula o cabeçalho
-	fseek(fp,RRN,SEEK_CUR);
-
+	int byteOffset = BYTE_OFFSET(RRN);
+	fseek(fp,0,SEEK_END);
+	if(ftell(fp) < byteOffset)
+	{
+		printf(ERRO_REGISTRO);
+		return NULL;
+	}
+	fseek(fp,byteOffset,SEEK_SET);
 	int existe ;
 	fread(&existe,sizeof(int),1,fp); // Saber se existe aquele registro 
 
@@ -974,7 +979,18 @@ void RemocaoLogicaPorRRN(int RRN) {
 	fclose(fp);
 }
  
-void AtualizaRegistroPorRRN(char* campos[], int RRN) {
+void AtualizaRegistroPorRRN(REGISTRO* registro, int RRN) 
+{
+	FILE* fp = fopen(ARQUIVO_SAIDA,"rb");
+	int byteOffset = BYTE_OFFSET(RRN);
+	fseek(fp,0,SEEK_END);
+	if(ftell(fp) < byteOffset)
+	{	
+		printf(ERRO_REGISTRO);
+		return ;
+	}
+	fclose(fp);
+	SubstituiRegistro(ARQUIVO_SAIDA,registro,byteOffset);
 }
 
 void DesfragmentaArquivoDeDados() {
@@ -1140,7 +1156,8 @@ int main(int argc, char *argv[]){
 			printf("Registro inserido com sucesso.\n");
 			break;
 		case 7:
-			AtualizaRegistroPorRRN(argv+3, atoi(argv[2]));
+			registro = LeRegistroDaEntrada(argv+3);
+			AtualizaRegistroPorRRN(registro, atoi(argv[2]));
 			break;
 		case 8:
 			ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
