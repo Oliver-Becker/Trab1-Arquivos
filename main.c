@@ -8,7 +8,8 @@
 #define TAMANHO_CABECALHO 5
 #define TAMANHO_REGISTRO 112
 #define BYTE_OFFSET(RRN) ((4 + TAMANHO_REGISTRO) * RRN) + TAMANHO_CABECALHO
-#define STR_VAZIO ""
+#define DATA_VAZIA "0000000000"
+#define CAMPO_VAZIO ""
 
 typedef struct {
 	int codEscola;
@@ -58,13 +59,14 @@ void ConfereConsistenciaDoArquivo(char* nomeArquivo) {
 	exit(1);
 }
 
+// Função para criar um novo arquivo de saída, já inserindo o cabeçalho.
 void CriaArquivoDeSaida(char* nomeArquivo) {
 	if (nomeArquivo == NULL)
 		return;
 
 	FILE* fp = fopen(nomeArquivo, "wb+");
-	char status = 0;
-	int topoPilha = -1;
+	char status = 0;	// Status para indicar a consistência do arquivo de dados.
+	int topoPilha = -1;	// Armazena o RRN do último registro logicamente removido.
 	fwrite(&status, sizeof(status), 1, fp);
 	fwrite(&topoPilha, sizeof(topoPilha), 1, fp);
 
@@ -184,17 +186,19 @@ VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
 		// leitura dos campos do arquivo de entrada.
 		registro->codEscola = atoi(string[0]);
 		// Caso o campo seja vazio (string null), atribui a string de zeros para o campo.
-		strcpy(registro->dataInicio, (string[4] != NULL) ? string[4] : "0000000000");
-		strcpy(registro->dataFinal, (string[5] != NULL) ? string[5] : "0000000000");
+		strcpy(registro->dataInicio, (string[4] != NULL) ? string[4] : DATA_VAZIA);
+		strcpy(registro->dataFinal, (string[5] != NULL) ? string[5] : DATA_VAZIA);
 		registro->tamNome = (string[1] != NULL) ? strlen(string[1]) : 0;
-		registro->nomeEscola = (string[1] != NULL) ? string[1] : STR_VAZIO;
+		registro->nomeEscola = (string[1] != NULL) ? string[1] : CAMPO_VAZIO;
 		registro->tamMunicipio = (string[2] != NULL) ? strlen(string[2]) : 0;
-		registro->municipio = (string[2] != NULL) ? string[2] : STR_VAZIO;
+		registro->municipio = (string[2] != NULL) ? string[2] : CAMPO_VAZIO;
 		registro->tamEndereco = (string[3] != NULL) ? strlen(string[3]) : 0;
-		registro->endereco = (string[3] != NULL) ? string[3] : STR_VAZIO;
+		registro->endereco = (string[3] != NULL) ? string[3] : CAMPO_VAZIO;
 
+		// Atribui o registro ao vetor.
 		vetRegistros->registro[counter++] = registro;
 
+		// Libera a memória que não será mais utilizada.
 		free(string[0]);
 		if (string[4] != NULL) free(string[4]);
 		if (string[5] != NULL) free(string[5]);
@@ -932,9 +936,6 @@ void RemocaoLogicaPorRRN(int RRN) {
 	fclose(fp);
 }
  
-void InsereRegistroAdicional(char* campos[]) {
-}
-
 void AtualizaRegistroPorRRN(char* campos[], int RRN) {
 }
 
@@ -957,6 +958,32 @@ void ImprimeRegistros(VETREGISTROS *vetRegistros) {
 void ImprimeVetor(int* vet) {
 }
 
+REGISTRO* LeRegistroDaEntrada(char* campo[]) {
+	REGISTRO* registro = (REGISTRO*)malloc(sizeof(REGISTRO));
+
+	registro->codEscola = atoi(campo[0]);
+	strcpy(registro->dataInicio, strcmp(campo[1], "0") ? campo[1] : DATA_VAZIA);
+	strcpy(registro->dataFinal, strcmp(campo[2], "0") ? campo[2] : DATA_VAZIA);
+
+	registro->tamNome = strlen(campo[3]);
+	registro->nomeEscola = (char*) malloc(sizeof(char) * registro->tamNome);
+	strcpy(registro->nomeEscola, campo[3]);
+
+	registro->tamMunicipio = strlen(campo[4]);
+	registro->municipio = (char*) malloc(sizeof(char) * registro->tamMunicipio);
+	strcpy(registro->municipio, campo[4]);
+
+	registro->tamEndereco = strlen(campo[5]);
+	registro->endereco = (char*) malloc(sizeof(char) * registro->tamEndereco);
+	strcpy(registro->endereco, campo[5]);
+
+	/*REGISTRO* r = registro;
+	printf("%d %s %s %d %s %d %s %d %s\n", r->codEscola, r->dataInicio, r->dataFinal,
+		r->tamNome, r->nomeEscola, r->tamMunicipio, r->municipio, r->tamEndereco,
+		r->endereco);
+	*/
+	return registro;
+}
 int main(int argc, char *argv[]){
 
 	if (argc < 2) {
@@ -966,6 +993,7 @@ int main(int argc, char *argv[]){
 	}
 
 	VETREGISTROS* vetRegistros = NULL;
+	REGISTRO* registro = NULL;
 	int* vetPilha = NULL;
 
 	switch (atoi(argv[1])) {
@@ -996,7 +1024,8 @@ int main(int argc, char *argv[]){
 			break;
 		case 6:
 			ConfereEntrada(argc, 8);
-			InsereRegistroAdicional(argv+2);
+			registro = LeRegistroDaEntrada(argv+2);
+			InsereRegistro(ARQUIVO_SAIDA, registro);
 			break;
 		case 7:
 			ConfereEntrada(argc, 9);
