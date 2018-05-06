@@ -2,13 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define QUANTIDADE_ARGUMENTOS {3, 2, 4, 3, 3, 8, 9, 2, 2}
 #define ERRO_GERAL "Falha no carregamento do arquivo.\n"
 #define ERRO_REGISTRO "Registro inexistente.\n"
 #define ERRO_PROCESSAMENTO "Falha no processamento do arquivo.\n"
 #define ARQUIVO_SAIDA "saida.bin"
+#define ARQUIVO_DESFRAGMENTADO "desfragmentacao.bin"
 #define TAMANHO_CABECALHO 5
 #define TAMANHO_REGISTRO 112
 #define BYTE_OFFSET(RRN) ((4 + TAMANHO_REGISTRO) * RRN) + TAMANHO_CABECALHO
+#define DATA_VAZIA "0000000000"
+#define CAMPO_VAZIO ""
 
 typedef struct {
 	int codEscola;
@@ -32,6 +36,9 @@ void AlteraStatusDoArquivo(char* nomeArquivo, char status) {
 		return;
 
 	FILE* fp = fopen(ARQUIVO_SAIDA, "rb+");
+	if (fp == NULL)
+		return;
+
 	fwrite(&status, sizeof(status), 1, fp);
 	fclose(fp);
 }
@@ -39,39 +46,37 @@ void AlteraStatusDoArquivo(char* nomeArquivo, char status) {
 void ConfereConsistenciaDoArquivo(char* nomeArquivo) {
 	if (nomeArquivo == NULL) {
 		printf(ERRO_GERAL);
-		exit(1);
+		exit(-3);
 	}
 
 	FILE* fp = fopen(nomeArquivo, "rb");
 	if (fp == NULL) {
 		printf(ERRO_GERAL);
-		exit(1);
+		exit(-3);
 	}
 
 	char status;
 	fread(&status, sizeof(status), 1, fp);
+	fclose(fp);
 	if (status == 1) 
 		return;
 
 	printf(ERRO_GERAL);
-	exit(1);
+	exit(-3);
 }
 
+// Função para criar um novo arquivo de saída, já inserindo o cabeçalho.
 void CriaArquivoDeSaida(char* nomeArquivo) {
 	if (nomeArquivo == NULL)
 		return;
 
-	FILE* fp = fopen(nomeArquivo, "wb");
-	char status = 0;
-	int topoPilha = -1;
+	FILE* fp = fopen(nomeArquivo, "wb+");
+	char status = 0;	// Status para indicar a consistência do arquivo de dados.
+	int topoPilha = -1;	// Armazena o RRN do último registro logicamente removido.
 	fwrite(&status, sizeof(status), 1, fp);
 	fwrite(&topoPilha, sizeof(topoPilha), 1, fp);
 
-	topoPilha = 324;
-	printf("topoPilha antes: %d\n", topoPilha);
-	fseek(fp, 1, SEEK_SET);
-	fread(&topoPilha, 4, 1, fp);
-	printf("topo DEPOISS: %d\n", topoPilha);
+	fclose(fp);
 }
 
 void AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro) {
@@ -79,43 +84,55 @@ void AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro) {
 		return;
 
 	FILE* fp = fopen(nomeArquivo, "ab");
-	printf("inserindo registro %d da escola %s\n", registro->codEscola, registro->nomeEscola);
-	printf("ftell no começo%ld\n", ftell(fp));
-
-	fseek(fp, 0, SEEK_END);
-
 	int registroRemovido = 0;
-	printf("%ld ", ftell(fp));
+
 	fwrite(&registroRemovido, sizeof(registroRemovido), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(&registro->codEscola, sizeof(registro->codEscola), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->dataInicio, sizeof(char), strlen(registro->dataInicio), fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->dataFinal, sizeof(char), strlen(registro->dataFinal), fp);
-	printf("%ld ", ftell(fp));
 	fwrite(&registro->tamNome, sizeof(registro->tamNome), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(&registro->tamEndereco, sizeof(registro->tamEndereco), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(&registro->tamMunicipio, sizeof(registro->tamMunicipio), 1, fp);
-	printf("%ld ", ftell(fp));
 	fwrite(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
-	printf("%ld ", ftell(fp));
 
 	int bytesRestantes = TAMANHO_REGISTRO;
 	bytesRestantes -= 36 + registro->tamNome + registro->tamEndereco + registro->tamMunicipio;
 
 	char* finalDoRegistro = (char*)malloc(sizeof(char) * bytesRestantes);
 	fwrite(finalDoRegistro, sizeof(char), bytesRestantes, fp);
-	printf("ftell FINALLL: %ld\n", ftell(fp));
+
+	REGISTRO* r = registro;
+	printf("%d %s %s %d %s %d %s %d %s\n", r->codEscola, r->dataInicio, r->dataFinal,
+		r->tamNome, r->nomeEscola, r->tamMunicipio, r->municipio, r->tamEndereco,
+		r->endereco);
+
+	free(finalDoRegistro);
+	fclose(fp);
 }
 
 void SubstituiRegistro(char* nomeArquivo, REGISTRO* registro, int byteOffset) {
+	if (nomeArquivo == NULL || registro == NULL)
+		return;
+
+	FILE* fp = fopen(nomeArquivo, "rb+");
+	int registroRemovido = 0;
+
+	fseek(fp, byteOffset, SEEK_SET);
+
+	fwrite(&registroRemovido, sizeof(registroRemovido), 1, fp);
+	fwrite(&registro->codEscola, sizeof(registro->codEscola), 1, fp);
+	fwrite(registro->dataInicio, sizeof(char), strlen(registro->dataInicio), fp);
+	fwrite(registro->dataFinal, sizeof(char), strlen(registro->dataFinal), fp);
+	fwrite(&registro->tamNome, sizeof(registro->tamNome), 1, fp);
+	fwrite(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
+	fwrite(&registro->tamEndereco, sizeof(registro->tamEndereco), 1, fp);
+	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
+	fwrite(&registro->tamMunicipio, sizeof(registro->tamMunicipio), 1, fp);
+	fwrite(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
+
+	fclose(fp);
 }
 
 void InsereRegistro(char* nomeArquivo, REGISTRO* registro) {
@@ -135,78 +152,116 @@ void InsereRegistro(char* nomeArquivo, REGISTRO* registro) {
 		SubstituiRegistro(nomeArquivo, registro, BYTE_OFFSET(topoPilha));
 }
 
-void InsereVetorDeRegistros(char* nomeArquivo, VETREGISTROS* vetRegistros) {
-	if (nomeArquivo == NULL || vetRegistros == NULL)
+void LiberaRegistro(REGISTRO* registro) {
+	if (registro == NULL)
 		return;
+
+	if (registro->nomeEscola != NULL && registro->nomeEscola != CAMPO_VAZIO)
+		free(registro->nomeEscola);
+	if (registro->municipio != NULL && registro->municipio != CAMPO_VAZIO)
+		free(registro->municipio);
+	if (registro->endereco != NULL && registro->endereco != CAMPO_VAZIO)
+		free(registro->endereco);
+
+	free(registro);
+	registro = NULL;
+}
+
+void LiberaVetorDeRegistros(VETREGISTROS* vetRegistros) {
+	if (vetRegistros == NULL)
+		return;
+
+	for (int i = 0; i < vetRegistros->numElementos; ++i)
+		LiberaRegistro(vetRegistros->registro[i]);
+
+	free(vetRegistros->registro);
+	free(vetRegistros);
+	vetRegistros = NULL;
+}
+
+void InsereVetorDeRegistros(char* nomeArquivo, VETREGISTROS* vetRegistros) {
+	if (nomeArquivo == NULL)
+		return;
+
+	if (vetRegistros == NULL || vetRegistros->numElementos == 0) {
+		printf(ERRO_REGISTRO);
+		exit(1);
+	}
+
+	AlteraStatusDoArquivo(ARQUIVO_SAIDA, 0);
 
 	for (int i = 0; i < vetRegistros->numElementos; ++i) {
 		InsereRegistro(nomeArquivo, vetRegistros->registro[i]);
 	}
+
+	LiberaVetorDeRegistros(vetRegistros);
+
+	AlteraStatusDoArquivo(ARQUIVO_SAIDA, 1);
 }
 
 VETREGISTROS* LeituraArquivoDeEntrada(char* nomeArquivo) {
-	FILE* fp = fopen(nomeArquivo, "r");
-	if (fp == NULL) {
+	if (nomeArquivo == NULL) {
 		printf(ERRO_GERAL);
 		return NULL;
 	}
 
+	FILE* fp = fopen(nomeArquivo, "r");	// Abre o arquivo de entrada no modo de leitura.
+	if (fp == NULL) {			// Caso o arquivo não exista, imprime erro.
+		printf(ERRO_GERAL);
+		return NULL;
+	}
+
+	// Aloca espaço para o VETREGISTROS que será retornado pela função.
 	VETREGISTROS* vetRegistros = (VETREGISTROS*) calloc(1, sizeof(VETREGISTROS));
-	REGISTRO* registro;
+	REGISTRO* registro; 	// Variável de registro auxiliar.
 
-	int counter = 0;
-	char* string[6];
+	int counter = 0; 	// Contador auxiliar para saber quantos registros já foram lidos.
+	char* string[6];	// Strings para armazenarem os campos lidos do arquivo de entrada.
 
+	// Loop para ler todos os registros até que encontre o fim do arquivo.
 	while (fscanf(fp, "%m[^;\n]", &string[0]) != EOF) {
-		for (int i = 1; i < 6; ++i)
-			fscanf(fp, "%*c%m[^;\n]", &string[i]);
-		fgetc(fp);
+		for (int i = 1; i < 6; ++i)			// Caso o registro exista, lê os 5
+			fscanf(fp, "%*c%m[^;\n]", &string[i]);		// campos restantes.
+		fgetc(fp);					// Consome o \n.
 
+		// Vai aumentando o espaço do vetor de registros conforme é lido da entrada.
 		vetRegistros->registro = (REGISTRO**)realloc(vetRegistros->registro, 
 				sizeof(REGISTRO*) * (++vetRegistros->numElementos));
 
+		// Aloca espaço para o registro que será anexado ao vetor.
 		registro = (REGISTRO*)malloc(sizeof(REGISTRO));
-/*		for (int i = 0; i < 6; ++i)
-			printf(" %s |", string[i]);
-		printf("\n");
-*/
-		registro->codEscola = atoi(string[0]);
-		strcpy(registro->dataInicio, (string[4] != NULL) ? string[4] : "0000000000");
-		strcpy(registro->dataFinal, (string[5] != NULL) ? string[5] : "0000000000");
-		registro->tamNome = (string[1] != NULL) ? strlen(string[1]) : 0;
-		registro->nomeEscola = string[1];
-		registro->tamMunicipio = (string[2] != NULL) ? strlen(string[2]) : 0;
-		registro->municipio = string[2];
-		registro->tamEndereco = (string[3] != NULL) ? strlen(string[3]) : 0;
-		registro->endereco = string[3];
 
+		// Atribui para cada campo da struct o valor correspondente, com base na ordem de
+		// leitura dos campos do arquivo de entrada.
+		registro->codEscola = atoi(string[0]);
+		// Caso o campo seja vazio (string null), atribui a string de zeros para o campo.
+		strcpy(registro->dataInicio, (string[4] != NULL) ? string[4] : DATA_VAZIA);
+		strcpy(registro->dataFinal, (string[5] != NULL) ? string[5] : DATA_VAZIA);
+		registro->tamNome = (string[1] != NULL) ? strlen(string[1]) : 0;
+		registro->nomeEscola = (string[1] != NULL) ? string[1] : CAMPO_VAZIO;
+		registro->tamMunicipio = (string[2] != NULL) ? strlen(string[2]) : 0;
+		registro->municipio = (string[2] != NULL) ? string[2] : CAMPO_VAZIO;
+		registro->tamEndereco = (string[3] != NULL) ? strlen(string[3]) : 0;
+		registro->endereco = (string[3] != NULL) ? string[3] : CAMPO_VAZIO;
+
+		// Atribui o registro ao vetor.
 		vetRegistros->registro[counter++] = registro;
 
+		// Libera a memória que não será mais utilizada.
 		free(string[0]);
 		if (string[4] != NULL) free(string[4]);
 		if (string[5] != NULL) free(string[5]);
 	}
 
-	REGISTRO* r;
+	/*REGISTRO* r;
 	for (int i = 0; i < vetRegistros->numElementos; ++i) {
 		r = vetRegistros->registro[i];
 		printf("%d %s %s %d %s %d %s %d %s\n", r->codEscola, r->dataInicio, r->dataFinal,
 			r->tamNome, r->nomeEscola, r->tamMunicipio, r->municipio, r->tamEndereco,
 			r->endereco);
-	}
+	}*/
 	//printf("tamanho do vetor de registros: %d\n", vetRegistros->numElementos);
 
-// free do vetor de registros
-/*	for (int i = 0; i < vetRegistros->numElementos; ++i) {
-		r = vetRegistros->registro[i];
-		if (r->nomeEscola != NULL) free(r->nomeEscola);
-		if (r->municipio != NULL) free(r->municipio);
-		if (r->endereco != NULL) free(r->endereco);
-		free(r);
-	}
-	free(vetRegistros->registro);
-	free(vetRegistros);
-*/
 	fclose(fp);
 
 	return vetRegistros;
@@ -741,26 +796,23 @@ VETREGISTROS* RecuperaRegistrosEndereco(char* valor){
 VETREGISTROS* RecuperaTodosRegistros() 
 {
 	FILE* fp = fopen(ARQUIVO_SAIDA,"rb");// Abre o arquivo
+	
+	VETREGISTROS *vTotal; // vetor com todos os registros
+	int buffer = 10;
+	int count=0; // realloc do vetor de registros
+	
+ // registro do momento que está sendo lido (Registro horizontal)
+	vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)); // vTotal é uma struct, logo aloca-se uma struct
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer); // ** é para aumentar verticalment
+	
 	char existealgo;
 	fread(&(existealgo),1,1,fp);
 	if(existealgo == '0') // significa que não tem nada para ser lido
 	{
 		printf(ERRO_GERAL);
-		return NULL;
+		return vTotal;
 	}
 	fseek(fp,4,SEEK_SET); // vai pular direto pra quinta posição, pois as 5 primeiras são cabeçalho
-	VETREGISTROS *vTotal; // vetor com todos os registros
-	REGISTRO *at;
-	int buffer = 10;
-	int count=0; // realloc do vetor de registros
-	at = (REGISTRO*) malloc(sizeof(REGISTRO)*buffer); // registro do momento que está sendo lido (Registro horizontal)
-
-	//vTotal->registro[0] = at; // vetRegistro (pertence ao vTotal)s
-
-	vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)); // vTotal é uma struct, logo aloca-se uma struct
-	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer); // ** é para aumentar verticalment
-					
-
 	while(feof(fp)!=0)
 	{
 		int existe; // Serve para um registro individualmente (Pois o registro pode ter sido apagado)
@@ -772,7 +824,9 @@ VETREGISTROS* RecuperaTodosRegistros()
 			Por alterar pressupoe-se ler o valor daquela linha do arquivo
 			Altera o registro da linha atual (linha atual = count)
 		*/
-		fread(&(vTotal->registro[count]->dataInicio),1,10,fp); //Vetor de registro na posição count da struct vai receber o valor da data de inicio
+		
+		//Vetor de registro na posição count da struct vai receber o valor da data de inicio
+		fread(&(vTotal->registro[count]->dataInicio),1,10,fp);
 		fread(&(vTotal->registro[count]->dataFinal),1,10,fp);// Data Final
 		
 		fread(&(vTotal->registro[count]->tamNome),1,4,fp); // Aqui tem o tamanho do nome da escola que vai ser lida (Alocada)
@@ -782,7 +836,8 @@ VETREGISTROS* RecuperaTodosRegistros()
 
 		fread(&(vTotal->registro[count]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
 		int Tamanho_Municipio = vTotal->registro[count]->tamMunicipio ;
-		vTotal->registro[count]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); // Aloquei para o nome do município o tamanho descoberto na palavra anterior
+		// Aloquei para o nome do município o tamanho descoberto na palavra anterior
+		vTotal->registro[count]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); 
 		fread(&(vTotal->registro[count]->municipio),1,Tamanho_Municipio,fp);
 
 		fread(&(vTotal->registro[count]->tamEndereco),1,4,fp);
@@ -799,7 +854,10 @@ VETREGISTROS* RecuperaTodosRegistros()
 		count++;
 
 	}
+	return vTotal;
+	fclose(fp);
 }
+
 
 VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
 	
@@ -823,7 +881,52 @@ VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
 		return RecuperaRegistrosEndereco(valor);
 }
 
-VETREGISTROS* RecuperaRegistroPorRRN(int RRN) {
+VETREGISTROS* RecuperaRegistroPorRRN(int RRN) 
+{	
+	FILE* fp = fopen(ARQUIVO_SAIDA,"rb");
+
+	VETREGISTROS *vTotal;
+	vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)); // vTotal é uma struct, logo aloca-se uma struct
+	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)); // ** é para aumentar verticalment
+
+
+	char existealgo;
+	fread(&(existealgo),1,1,fp);
+	if(existealgo == '0')
+	{
+		printf(ERRO_GERAL);
+		return  vTotal;
+	}
+
+	fseek(fp,4,SEEK_SET); // pula o cabeçalho
+	fseek(fp,RRN,SEEK_CUR);
+
+	int existe ;
+	fread(&existe,sizeof(int),1,fp); // Saber se existe aquele registro 
+
+	if(existe < 0) 
+		return vTotal;
+
+	fread(vTotal->registro[0]->dataInicio,1,10,fp);
+	fread(&(vTotal->registro[0]->dataFinal),1,10,fp);// Data Final
+
+	fread(&(vTotal->registro[0]->tamNome),1,4,fp);
+	int Tamanho_Nome = vTotal->registro[0]->tamNome;
+	vTotal->registro[0]->nomeEscola = (char*) malloc(sizeof(char)*Tamanho_Nome); // Criei um espaço do tamanho do nome para usar no fread
+	fread(&(vTotal->registro[0]->nomeEscola),1,Tamanho_Nome,fp);
+	
+
+	fread(&(vTotal->registro[0]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
+	int Tamanho_Municipio = vTotal->registro[0]->tamMunicipio ;// Aloquei para o nome do município o tamanho descoberto na palavra anterior
+	vTotal->registro[0]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); 
+	fread(&(vTotal->registro[0]->municipio),1,Tamanho_Municipio,fp);
+
+	fread(&(vTotal->registro[0]->tamEndereco),1,4,fp);
+	int Tamanho_Endereco = vTotal->registro[0]->tamEndereco;
+	vTotal->registro[0]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
+	fread(&(vTotal->registro[0]->endereco),1,Tamanho_Endereco,fp);
+	return vTotal;
+	fclose(fp);
 }
 
 void RemocaoLogicaPorRRN(int RRN) {
@@ -870,14 +973,24 @@ void RemocaoLogicaPorRRN(int RRN) {
 	
 	fclose(fp);
 }
-
-void InsereRegistroAdicional(char* campos[]) {
-}
-
+ 
 void AtualizaRegistroPorRRN(char* campos[], int RRN) {
 }
 
 void DesfragmentaArquivoDeDados() {
+	CriaArquivoDeSaida(ARQUIVO_DESFRAGMENTADO);
+	VETREGISTROS* vetRegistros = RecuperaTodosRegistros();
+	printf("AKIII\n");
+	InsereVetorDeRegistros(ARQUIVO_DESFRAGMENTADO, vetRegistros);
+	printf("AKIII\n");
+	if (remove(ARQUIVO_SAIDA)) {		// Remove o antigo arquivo de saída.
+		printf(ERRO_GERAL);
+		exit(-8);
+	}
+	if (rename(ARQUIVO_DESFRAGMENTADO, ARQUIVO_SAIDA)) {	// Muda o nome do novo arquivo para
+		printf(ERRO_GERAL);					// o do antigo.
+		exit(-8);
+	}
 }
 
 int* RecuperaRRNLogicamenteRemovidos() {
@@ -929,7 +1042,7 @@ int* RecuperaRRNLogicamenteRemovidos() {
 void ConfereEntrada(int argc, int valorEsperado) {
 	if (argc != valorEsperado) {
 		printf(ERRO_GERAL);
-		exit(1);
+		exit(-2);
 	}
 }
 
@@ -956,57 +1069,85 @@ void ImprimeVetor(int* vet) {
 	printf("\n");
 }
 
+REGISTRO* LeRegistroDaEntrada(char* campo[]) {
+	REGISTRO* registro = (REGISTRO*)malloc(sizeof(REGISTRO));
+
+	registro->codEscola = atoi(campo[0]);
+	strcpy(registro->dataInicio, strcmp(campo[1], "0") ? campo[1] : DATA_VAZIA);
+	strcpy(registro->dataFinal, strcmp(campo[2], "0") ? campo[2] : DATA_VAZIA);
+
+	registro->tamNome = strlen(campo[3]);
+	registro->nomeEscola = (char*) malloc(sizeof(char) * registro->tamNome);
+	strcpy(registro->nomeEscola, campo[3]);
+
+	registro->tamMunicipio = strlen(campo[4]);
+	registro->municipio = (char*) malloc(sizeof(char) * registro->tamMunicipio);
+	strcpy(registro->municipio, campo[4]);
+
+	registro->tamEndereco = strlen(campo[5]);
+	registro->endereco = (char*) malloc(sizeof(char) * registro->tamEndereco);
+	strcpy(registro->endereco, campo[5]);
+
+	/*REGISTRO* r = registro;
+	printf("%d %s %s %d %s %d %s %d %s\n", r->codEscola, r->dataInicio, r->dataFinal,
+		r->tamNome, r->nomeEscola, r->tamMunicipio, r->municipio, r->tamEndereco,
+		r->endereco);
+	*/
+	return registro;
+}
 int main(int argc, char *argv[]){
 
-	if (argc < 2) {
-		printf("ERRO! Utilização do programa: %s <código-op(numero entre 1 e 9)>", argv[0]);
-		printf(" <argumentos-da-operação>\n");
+	if (argc < 2 || atoi(argv[1]) < 1 || atoi(argv[1]) > 9) {
+		printf(ERRO_GERAL);
 		return -1;
 	}
 
 	VETREGISTROS* vetRegistros = NULL;
+	REGISTRO* registro = NULL;
 	int* vetPilha = NULL;
+
+	int quantidadeArgumentos[9] = QUANTIDADE_ARGUMENTOS;
+	ConfereEntrada(argc, quantidadeArgumentos[atoi(argv[1]) - 1]);
 
 	switch (atoi(argv[1])) {
 		case 1:
-			ConfereEntrada(argc, 3);
 			vetRegistros = LeituraArquivoDeEntrada(argv[2]);
 			CriaArquivoDeSaida(ARQUIVO_SAIDA);
 			InsereVetorDeRegistros(ARQUIVO_SAIDA, vetRegistros);
+
+			printf("Arquivo carregado.\n");
 			break;
 		case 2:
-			ConfereEntrada(argc, 2);
 			vetRegistros = RecuperaTodosRegistros();
 			ImprimeRegistros(vetRegistros);
 			break;
 		case 3:
-			ConfereEntrada(argc, 4);
 			vetRegistros = RecuperaRegistrosPorCampo(argv[2], argv[3]);
 			ImprimeRegistros(vetRegistros);
 			break;
 		case 4:
-			ConfereEntrada(argc, 3);
 			vetRegistros = RecuperaRegistroPorRRN(atoi(argv[2]));
 			ImprimeRegistros(vetRegistros);
 			break;
 		case 5:
-			ConfereEntrada(argc, 3);
 			RemocaoLogicaPorRRN(atoi(argv[2]));
 			break;
 		case 6:
-			ConfereEntrada(argc, 8);
-			InsereRegistroAdicional(argv+2);
+			ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
+			registro = LeRegistroDaEntrada(argv+2);
+			InsereRegistro(ARQUIVO_SAIDA, registro);
+
+			printf("Registro inserido com sucesso.\n");
 			break;
 		case 7:
-			ConfereEntrada(argc, 9);
 			AtualizaRegistroPorRRN(argv+3, atoi(argv[2]));
 			break;
 		case 8:
-			ConfereEntrada(argc, 2);
+			ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
 			DesfragmentaArquivoDeDados();
+			printf("Arquivo de dados compactado com sucesso.\n");
 			break;
 		case 9:
-			ConfereEntrada(argc, 2);
 			vetPilha = RecuperaRRNLogicamenteRemovidos();
 			ImprimeVetor(vetPilha);
 			break;
