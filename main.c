@@ -351,13 +351,15 @@ VETREGISTROS* RecuperaRegistrosCodEscola(char* valor){
 			fseek(fp, tam, SEEK_CUR); //consome o registro do endereço da escola
 		}
 	}
+	
+	vTotal->numElementos = count; //salva a quantidade de registros encontrados
 
 	if(count == 0) //não encontrou o registro a ser buscado pelo usuário
 		printf(ERRO_REGISTRO);
 
-	return vTotal;
-
 	fclose(fp);
+	
+	return vTotal;
 }
 
 VETREGISTROS* RecuperaRegistrosDataInicio(char* valor){
@@ -445,12 +447,14 @@ VETREGISTROS* RecuperaRegistrosDataInicio(char* valor){
 		}
 	}
 
+	vTotal->numElementos = count; //salva a quantidade de registros encontrado
+
 	if(count == 0) //não encontrou o registro a ser buscado pelo usuário
 		printf(ERRO_REGISTRO);
 
-	return vTotal;
-
 	fclose(fp);
+
+	return vTotal;
 }
 
 VETREGISTROS* RecuperaRegistrosDataFinal(char* valor){	
@@ -537,12 +541,14 @@ VETREGISTROS* RecuperaRegistrosDataFinal(char* valor){
 		}
 	}
 
+	vTotal->numElementos = count; //salva a quantidade de registros encontrado
+
 	if(count == 0) //não encontrou o registro a ser buscado pelo usuário
 		printf(ERRO_REGISTRO);
+	
+	fclose(fp);
 
 	return vTotal;
-
-	fclose(fp);
 }
 
 VETREGISTROS* RecuperaRegistrosNomeEscola(char* valor){
@@ -625,12 +631,14 @@ VETREGISTROS* RecuperaRegistrosNomeEscola(char* valor){
 		}
 	}
 
+	vTotal->numElementos = count; //salva a quantidade de registros encontrado
+
 	if(count == 0) //não encontrou o registro a ser buscado pelo usuário
 		printf(ERRO_REGISTRO);
 
-	return vTotal;
-
 	fclose(fp);
+	
+	return vTotal;
 }
 
 VETREGISTROS* RecuperaRegistrosMunicipio(char* valor){	
@@ -709,12 +717,14 @@ VETREGISTROS* RecuperaRegistrosMunicipio(char* valor){
 		}
 	}
 
+	vTotal->numElementos = count; //salva a quantidade de registros encontrado
+
 	if(count == 0) //não encontrou o registro a ser buscado pelo usuário
 		printf(ERRO_REGISTRO);
 
-	return vTotal;
-
 	fclose(fp);
+	
+	return vTotal;
 }
 
 VETREGISTROS* RecuperaRegistrosEndereco(char* valor){
@@ -731,10 +741,8 @@ VETREGISTROS* RecuperaRegistrosEndereco(char* valor){
 	while(feof(fp) != 0){
 
 		fread(&regExiste, sizeof(int), 1 , fp); //lê o int com o status do registro, -1 é registro removido
-		
-		if(regExiste == -1) //lê o proximo registro caso o atual foi removido
-			continue;
 
+		if(regExiste == -1) //lê o proximo registro caso o atual foi removido
 		//lê o código da escola e salva no vetRegistro[count].codEscola
 		fread(&(vTotal->registro[count]->codEscola), 1, sizeof(int), fp);
 
@@ -785,12 +793,14 @@ VETREGISTROS* RecuperaRegistrosEndereco(char* valor){
 		}
 	}
 
+	vTotal->numElementos = count; //salva a quantidade de registros encontrado
+
 	if(count == 0) //não encontrou o registro a ser buscado pelo usuário
 		printf(ERRO_REGISTRO);
 
-	return vTotal;
-
 	fclose(fp);
+
+	return vTotal;
 }
 
 VETREGISTROS* RecuperaTodosRegistros() 
@@ -807,11 +817,12 @@ VETREGISTROS* RecuperaTodosRegistros()
 	
 	char existealgo;
 	fread(&(existealgo),1,1,fp);
-	if(existealgo == '0') // significa que não tem nada para ser lido
-	{
+	
 		printf(ERRO_GERAL);
+	
+	if(existealgo == '0') // significa que não tem nada para ser lido
 		return vTotal;
-	}
+
 	fseek(fp,4,SEEK_SET); // vai pular direto pra quinta posição, pois as 5 primeiras são cabeçalho
 	while(feof(fp)!=0)
 	{
@@ -852,10 +863,11 @@ VETREGISTROS* RecuperaTodosRegistros()
 			vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)*buffer);
 		}
 		count++;
-
 	}
-	return vTotal;
+
 	fclose(fp);
+	
+	return vTotal;
 }
 
 
@@ -1048,6 +1060,26 @@ void ConfereEntrada(int argc, int valorEsperado) {
 
 void ImprimeRegistros(VETREGISTROS *vetRegistros) {
 	
+	if(vetRegistros == NULL){  //caso algum erro foi encontrado
+		printf(ERRO_PROCESSAMENTO);
+		return;
+	}
+
+	if(vetRegistros->numElementos == 0){ //caso não haja registros
+		printf(ERRO_REGISTRO);
+		return;
+	}
+
+	for(int i=0; i<vetRegistros->numElementos; i++){
+
+		printf("%d ", vetRegistros->registro[i]->codEscola);
+		printf("%s ", vetRegistros->registro[i]->dataInicio);
+		printf("%s ", vetRegistros->registro[i]->dataFinal);
+		printf("%s ", vetRegistros->registro[i]->nomeEscola);
+		printf("%s ", vetRegistros->registro[i]->municipio);
+		printf("%s ", vetRegistros->registro[i]->endereco);
+		printf("\n");
+	}
 }
 
 void ImprimeVetor(int* vet) {
@@ -1095,6 +1127,7 @@ REGISTRO* LeRegistroDaEntrada(char* campo[]) {
 	*/
 	return registro;
 }
+
 int main(int argc, char *argv[]){
 
 	if (argc < 2 || atoi(argv[1]) < 1 || atoi(argv[1]) > 9) {
