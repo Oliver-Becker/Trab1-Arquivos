@@ -878,6 +878,8 @@ VETREGISTROS* RecuperaTodosRegistros()
 		fread(&registroRemovido, sizeof(registroRemovido), 1, fp);
 	} while (!feof(fp));
 
+	fclose(fp);
+
 	/*REGISTRO* r;
 	for (int i = 0; i < vetRegistros->numElementos; ++i) {
 		r = vetRegistros->registro[i];
@@ -954,8 +956,55 @@ VETREGISTROS* RecuperaTodosRegistros()
 */
 }
 
+int comparaCampoDoRegistro(REGISTRO* registro, char* nomeDoCampo, char* valor) {
+	if (registro == NULL || nomeDoCampo == NULL || valor == NULL) {
+		return 0;
+	}
+
+	if (!strcmp(nomeDoCampo, "codEscola"))
+		return registro->codEscola == atoi(valor);
+	else if (!strcmp(nomeDoCampo, "dataInicio"))
+		return !strcmp(registro->dataInicio, valor);
+	else if (!strcmp(nomeDoCampo, "dataFinal"))
+		return !strcmp(registro->dataFinal, valor);
+	else if (!strcmp(nomeDoCampo, "nomeEscola"))
+		return !strcmp(registro->nomeEscola, valor);
+	else if (!strcmp(nomeDoCampo, "municipio"))
+		return !strcmp(registro->municipio, valor);
+	else if (!strcmp(nomeDoCampo, "endereco"))
+		return !strcmp(registro->endereco, valor);
+	
+	return 0;
+}
 
 VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
+
+	if (nomeDoCampo == NULL || valor == NULL)
+		return NULL;
+
+	VETREGISTROS* todosRegistros = RecuperaTodosRegistros();
+
+	if (todosRegistros == NULL || todosRegistros->numElementos == 0)
+		return NULL;
+
+	VETREGISTROS* registrosCompativeis = (VETREGISTROS*)calloc(1, sizeof(VETREGISTROS));
+	int counter = 0;
+
+	for (int i = 0; i < todosRegistros->numElementos; ++i) {
+		if (comparaCampoDoRegistro(todosRegistros->registro[i], nomeDoCampo, valor)) {
+			registrosCompativeis->registro = (REGISTRO**)realloc(registrosCompativeis->registro, 
+					sizeof(REGISTRO*) * (++registrosCompativeis->numElementos));
+
+			registrosCompativeis->registro[counter++] = todosRegistros->registro[i];
+		} else {
+			LiberaRegistro(todosRegistros->registro[i]);
+		}
+	}
+
+	free(todosRegistros->registro);
+	free(todosRegistros);
+
+	return registrosCompativeis;
 /*	
 	FILE* fp = fopen(ARQUIVO_SAIDA, "rb");
 
