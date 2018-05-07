@@ -3,11 +3,11 @@
 #include <string.h>
 
 #define QUANTIDADE_ARGUMENTOS {3, 2, 4, 3, 3, 8, 9, 2, 2}
-#define ERRO_GERAL "Falha no carregamento do arquivo.\n"
 #define ERRO_REGISTRO "Registro inexistente.\n"
-#define ERRO_PROCESSAMENTO "Falha no processamento do arquivo.\n"
+#define ERRO_GERAL "Falha no processamento do arquivo.\n"
 #define ARQUIVO_SAIDA "saida.bin"
 #define ARQUIVO_DESFRAGMENTADO "desfragmentacao.bin"
+#define TAMANHO_DATA 10
 #define TAMANHO_CABECALHO 5
 #define TAMANHO_REGISTRO 112
 #define BYTE_OFFSET(RRN) ((4 + TAMANHO_REGISTRO) * RRN) + TAMANHO_CABECALHO
@@ -16,8 +16,8 @@
 
 typedef struct {
 	int codEscola;
-	char dataInicio[11];
-	char dataFinal[11];
+	char dataInicio[TAMANHO_DATA + 1];
+	char dataFinal[TAMANHO_DATA + 1];
 	int tamNome;
 	char *nomeEscola;
 	int tamMunicipio;
@@ -180,10 +180,10 @@ void LiberaVetorDeRegistros(VETREGISTROS* vetRegistros) {
 }
 
 void InsereVetorDeRegistros(char* nomeArquivo, VETREGISTROS* vetRegistros) {
-	if (nomeArquivo == NULL)
+	if (nomeArquivo == NULL || vetRegistros == NULL)
 		return;
 
-	if (vetRegistros == NULL || vetRegistros->numElementos == 0) {
+	if (vetRegistros->numElementos == 0) {
 		printf(ERRO_REGISTRO);
 		exit(1);
 	}
@@ -271,7 +271,6 @@ VETREGISTROS* RecuperaRegistrosCodEscola(char* valor){
 	
 	
 	int regExiste;
-	int buffer = 10;
 	int count = 0;
 	int num = atoi(valor);
 	printf("%d\n", num);
@@ -307,22 +306,27 @@ VETREGISTROS* RecuperaRegistrosCodEscola(char* valor){
 			//break;
 			//lê a data de início e salva no vetRegistro[count].dataInicio
 			fread(&(vTotal->registro[count]->dataInicio), 10, 1, fp); 
+			printf("dataInicio: %s\n", vTotal->registro[count]->dataInicio);
 			//lê a data final e salva no vetRegistro[count].dataFim
 			fread(&(vTotal->registro[count]->dataFinal), 10, 1, fp);
+			printf("dataFinal: %s\n", vTotal->registro[count]->dataFinal);
 	
 			//leitura do nome da escola
 			//lê o tamanho do registro do nome da escola e salva no vetRegistro[count].tamNome
 			fread(&(vTotal->registro[count]->tamNome), sizeof(int), 1, fp);
+			printf("tamNome: %d\n", vTotal->registro[count]->tamNome);
 			//quantidade de memória que precisa ser alocada pra o vetor nomeEscola 
 			int tamNome =  vTotal->registro[count]->tamNome; 
 			printf("tam = %d\n", tamNome);
 			//aloca memória para o vetor nomeEscola
-			vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char) * tamNome);
+			vTotal->registro[count]->nomeEscola = (char*) malloc(sizeof(char) * (tamNome+20));
 			//lê o nome da escola e salva no vetRegistro[count].nomeEscola 
-			printf("%d\n", ftell(fp));
-			fread(&(vTotal->registro[count]->nomeEscola), tamNome, 1, fp); 
-			printf("%s\n", &(vTotal->registro[count]->nomeEscola));
-			printf("%d\n", ftell(fp));
+			printf("%zd\n", ftell(fp));
+			fread((vTotal->registro[count]->nomeEscola), sizeof(char), tamNome, fp); 
+			printf("aki\n");
+			vTotal->registro[count]->nomeEscola[tamNome] = '\0';
+			printf("nomeEscola: %s\n", vTotal->registro[count]->nomeEscola);
+			printf("%zd\n", ftell(fp));
 			
 
 			//leitura do municipio da escola
@@ -351,7 +355,7 @@ VETREGISTROS* RecuperaRegistrosCodEscola(char* valor){
 		}
 		else{  //consome o registro que não é o procurado
 
-			printf("posicao 1 = %d\n", ftell(fp));
+			printf("posicao 1 = %zd\n", ftell(fp));
 
 			int tam;
 			fseek(fp, 20, SEEK_CUR); //consome os registros de data inicial e data final
@@ -369,7 +373,7 @@ VETREGISTROS* RecuperaRegistrosCodEscola(char* valor){
 			fread(&tam, sizeof(int), 1, fp); //lê o tamanho do registro do municipio da escola
 			fseek(fp, tam, SEEK_CUR); //consome o registro do endereço da escola
 
-			printf("posicao 2 = %d\n", ftell(fp));
+			printf("posicao 2 = %zd\n", ftell(fp));
 		}
 	}
 	
@@ -826,7 +830,65 @@ VETREGISTROS* RecuperaRegistrosEndereco(char* valor){
 
 VETREGISTROS* RecuperaTodosRegistros() 
 {
-	FILE* fp = fopen(ARQUIVO_SAIDA,"rb");// Abre o arquivo
+	FILE* fp = fopen(ARQUIVO_SAIDA, "rb");
+	if (fp == NULL)
+		return NULL;
+
+	int registroRemovido;
+	int counter = 0;
+	int bytesRestantes;
+	VETREGISTROS* vetRegistros = (VETREGISTROS*) calloc(1, sizeof(VETREGISTROS));
+	REGISTRO* registro;
+
+	fseek(fp, TAMANHO_CABECALHO, SEEK_SET);
+
+	fread(&registroRemovido, sizeof(registroRemovido), 1, fp);
+	
+	do {
+		if (registroRemovido < 0) {	// Caso o arquivo esteja removido, pula o registro.
+			fseek(fp, TAMANHO_REGISTRO, SEEK_CUR);
+		} else {
+			vetRegistros->registro = (REGISTRO**)realloc(vetRegistros->registro, 
+					sizeof(REGISTRO*) * (++vetRegistros->numElementos));
+
+			registro = (REGISTRO*)calloc(1, sizeof(REGISTRO));
+
+			fread(&registro->codEscola, sizeof(int), 1, fp);
+			fread(registro->dataInicio, sizeof(char), TAMANHO_DATA, fp);
+			fread(registro->dataFinal, sizeof(char), TAMANHO_DATA, fp);
+
+			fread(&registro->tamNome, sizeof(int), 1, fp);
+			registro->nomeEscola = (char*)calloc(registro->tamNome + 1, sizeof(char));
+			fread(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
+
+			fread(&registro->tamMunicipio, sizeof(int), 1, fp);
+			registro->municipio = (char*)calloc(registro->tamMunicipio + 1, sizeof(char));
+			fread(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
+
+			fread(&registro->tamEndereco, sizeof(int), 1, fp);
+			registro->endereco = (char*)calloc(registro->tamEndereco + 1, sizeof(char));
+			fread(registro->endereco, sizeof(char), registro->tamEndereco, fp);
+
+			vetRegistros->registro[counter++] = registro;
+			bytesRestantes = TAMANHO_REGISTRO - 36 - registro->tamNome;
+			bytesRestantes -= registro->tamEndereco + registro->tamMunicipio;
+
+			fseek(fp, bytesRestantes, SEEK_CUR);
+		}
+		fread(&registroRemovido, sizeof(registroRemovido), 1, fp);
+	} while (!feof(fp));
+
+	/*REGISTRO* r;
+	for (int i = 0; i < vetRegistros->numElementos; ++i) {
+		r = vetRegistros->registro[i];
+		printf("%d %s %s %d %s %d %s %d %s\n", r->codEscola, r->dataInicio, r->dataFinal,
+			r->tamNome, r->nomeEscola, r->tamMunicipio, r->municipio, r->tamEndereco,
+			r->endereco);
+	}*/
+
+	return vetRegistros;
+
+/*	FILE* fp = fopen(ARQUIVO_SAIDA,"rb");// Abre o arquivo
 	
 	VETREGISTROS *vTotal; // vetor com todos os registros
 	int buffer = 10;
@@ -851,11 +913,11 @@ VETREGISTROS* RecuperaTodosRegistros()
 		fread(&existe,sizeof(int),1,fp); // Saber se existe aquele registro 
 		if(existe < 0) 
 			fseek(fp,sizeof(REGISTRO),SEEK_CUR);
-		/*
+		/\*
 			Como altera algo, utiliza-se endereço, Dentro do vTotal tem o vetor de registros, vai alterar dentro do vetor de registros
 			Por alterar pressupoe-se ler o valor daquela linha do arquivo
 			Altera o registro da linha atual (linha atual = count)
-		*/
+		*\/
 		
 		//Vetor de registro na posição count da struct vai receber o valor da data de inicio
 		fread(&(vTotal->registro[count]->dataInicio),1,10,fp);
@@ -889,11 +951,12 @@ VETREGISTROS* RecuperaTodosRegistros()
 	fclose(fp);
 	
 	return vTotal;
+*/
 }
 
 
 VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
-	
+/*	
 	FILE* fp = fopen(ARQUIVO_SAIDA, "rb");
 
 	ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA); //confere a consistência do arquivo
@@ -924,6 +987,7 @@ VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
 		printf("ENDEREÇO\n");
 		return RecuperaRegistrosEndereco(valor);
 	}
+*/
 }
 
 VETREGISTROS* RecuperaRegistroPorRRN(int RRN) 
@@ -1109,7 +1173,7 @@ void ConfereEntrada(int argc, int valorEsperado) {
 void ImprimeRegistros(VETREGISTROS *vetRegistros) {
 	
 	if(vetRegistros == NULL){  //caso algum erro foi encontrado
-		printf(ERRO_PROCESSAMENTO);
+		printf(ERRO_GERAL);
 		return;
 	}
 
@@ -1133,7 +1197,7 @@ void ImprimeRegistros(VETREGISTROS *vetRegistros) {
 void ImprimeVetor(int* vet) {
 
 	if(vet == NULL){
-		printf(ERRO_PROCESSAMENTO);
+		printf(ERRO_GERAL);
 		return;
 	}
 
