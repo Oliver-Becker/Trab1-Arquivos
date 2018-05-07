@@ -1039,57 +1039,60 @@ VETREGISTROS* RecuperaRegistrosPorCampo(char* nomeDoCampo, char* valor) {
 */
 }
 
-VETREGISTROS* RecuperaRegistroPorRRN(int RRN) 
+int UltimaPosicaoDoArquivo(char* nomeArquivo) {
+	if (nomeArquivo == NULL)
+		return -1;
+
+	FILE* fp = fopen(nomeArquivo, "rb");
+	if (fp == NULL)
+		return -1;
+
+	fseek(fp, 0, SEEK_END);
+	int posicao = ftell(fp);
+	fclose(fp);
+
+	return posicao;
+}
+
+REGISTRO* RecuperaRegistroPorRRN(int RRN) 
 {	
+	if (RRN < 0 || BYTE_OFFSET(RRN) > (UltimaPosicaoDoArquivo(ARQUIVO_SAIDA) - TAMANHO_REGISTRO))
+		return NULL;
+
 	FILE* fp = fopen(ARQUIVO_SAIDA,"rb");
+	if (fp == NULL)
+		return NULL;
 
-	VETREGISTROS *vTotal;
-	vTotal = (VETREGISTROS*) malloc(sizeof(VETREGISTROS)); // vTotal é uma struct, logo aloca-se uma struct
-	vTotal->registro = (REGISTRO**) malloc(sizeof(REGISTRO*)); // ** é para aumentar verticalment
+	fseek(fp, BYTE_OFFSET(RRN), SEEK_SET);
 
+	REGISTRO* registro = (REGISTRO*) calloc(1, sizeof(REGISTRO));
 
-	char existealgo;
-	fread(&(existealgo),1,1,fp);
-	if(existealgo == '0')
-	{
-		printf(ERRO_GERAL);
-		return  vTotal;
-	}
+	int registroRemovido;
+	fread(&registroRemovido, sizeof(registroRemovido), 1, fp);
 
-	int byteOffset = BYTE_OFFSET(RRN);
-	fseek(fp,0,SEEK_END);
-	if(ftell(fp) < byteOffset)
-	{
-		printf(ERRO_REGISTRO);
+	if (registroRemovido < 0) {
+		fclose(fp);
 		return NULL;
 	}
-	fseek(fp,byteOffset,SEEK_SET);
-	int existe ;
-	fread(&existe,sizeof(int),1,fp); // Saber se existe aquele registro 
 
-	if(existe < 0) 
-		return vTotal;
+	fread(&registro->codEscola, sizeof(int), 1, fp);
+	fread(registro->dataInicio, sizeof(char), TAMANHO_DATA, fp);
+	fread(registro->dataFinal, sizeof(char), TAMANHO_DATA, fp);
 
-	fread(vTotal->registro[0]->dataInicio,1,10,fp);
-	fread(&(vTotal->registro[0]->dataFinal),1,10,fp);// Data Final
+	fread(&registro->tamNome, sizeof(int), 1, fp);
+	registro->nomeEscola = (char*)calloc(registro->tamNome + 1, sizeof(char));
+	fread(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
 
-	fread(&(vTotal->registro[0]->tamNome),1,4,fp);
-	int Tamanho_Nome = vTotal->registro[0]->tamNome;
-	vTotal->registro[0]->nomeEscola = (char*) malloc(sizeof(char)*Tamanho_Nome); // Criei um espaço do tamanho do nome para usar no fread
-	fread(&(vTotal->registro[0]->nomeEscola),1,Tamanho_Nome,fp);
-	
+	fread(&registro->tamMunicipio, sizeof(int), 1, fp);
+	registro->municipio = (char*)calloc(registro->tamMunicipio + 1, sizeof(char));
+	fread(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
 
-	fread(&(vTotal->registro[0]->tamMunicipio),1,4,fp); //Aqui tem o tamanho do nome do município que vai ser lida (Alocada)
-	int Tamanho_Municipio = vTotal->registro[0]->tamMunicipio ;// Aloquei para o nome do município o tamanho descoberto na palavra anterior
-	vTotal->registro[0]->municipio = (char*) malloc(sizeof(char)*Tamanho_Municipio); 
-	fread(&(vTotal->registro[0]->municipio),1,Tamanho_Municipio,fp);
+	fread(&registro->tamEndereco, sizeof(int), 1, fp);
+	registro->endereco = (char*)calloc(registro->tamEndereco + 1, sizeof(char));
+	fread(registro->endereco, sizeof(char), registro->tamEndereco, fp);
 
-	fread(&(vTotal->registro[0]->tamEndereco),1,4,fp);
-	int Tamanho_Endereco = vTotal->registro[0]->tamEndereco;
-	vTotal->registro[0]->endereco = (char*) malloc(sizeof(char)*Tamanho_Endereco);
-	fread(&(vTotal->registro[0]->endereco),1,Tamanho_Endereco,fp);
-	return vTotal;
 	fclose(fp);
+	return registro;
 }
 
 void RemocaoLogicaPorRRN(int RRN) {
@@ -1219,6 +1222,18 @@ void ConfereEntrada(int argc, int valorEsperado) {
 	}
 }
 
+void ImprimeRegistro(REGISTRO* registro) {
+	if (registro == NULL)
+		return;
+
+	printf("%d ", registro->codEscola);
+	printf("%s ", registro->dataInicio);
+	printf("%s ", registro->dataFinal);
+	printf("%s ", registro->nomeEscola);
+	printf("%s ", registro->municipio);
+	printf("%s ", registro->endereco);
+	printf("\n");
+}
 void ImprimeRegistros(VETREGISTROS *vetRegistros) {
 	
 	if(vetRegistros == NULL){  //caso algum erro foi encontrado
@@ -1231,16 +1246,8 @@ void ImprimeRegistros(VETREGISTROS *vetRegistros) {
 		return;
 	}
 
-	for(int i=0; i<vetRegistros->numElementos; i++){
-
-		printf("%d ", vetRegistros->registro[i]->codEscola);
-		printf("%s ", vetRegistros->registro[i]->dataInicio);
-		printf("%s ", vetRegistros->registro[i]->dataFinal);
-		printf("%s ", vetRegistros->registro[i]->nomeEscola);
-		printf("%s ", vetRegistros->registro[i]->municipio);
-		printf("%s ", vetRegistros->registro[i]->endereco);
-		printf("\n");
-	}
+	for(int i=0; i<vetRegistros->numElementos; i++)
+		ImprimeRegistro(vetRegistros->registro[i]);
 }
 
 void ImprimeVetor(int* vet) {
@@ -1320,8 +1327,8 @@ int main(int argc, char *argv[]){
 			ImprimeRegistros(vetRegistros);
 			break;
 		case 4:
-			vetRegistros = RecuperaRegistroPorRRN(atoi(argv[2]));
-			ImprimeRegistros(vetRegistros);
+			registro = RecuperaRegistroPorRRN(atoi(argv[2]));
+			ImprimeRegistro(registro);
 			break;
 		case 5:
 			RemocaoLogicaPorRRN(atoi(argv[2]));
