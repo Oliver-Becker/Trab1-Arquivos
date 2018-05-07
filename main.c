@@ -31,6 +31,37 @@ typedef struct {
 	int numElementos;
 } VETREGISTROS;
 
+void AlteraTopoDaPilha(char* nomeArquivo, int topoPilha) {
+	if (nomeArquivo == NULL || topoPilha < -1)
+		return;
+
+	FILE* fp = fopen(nomeArquivo, "rb+");
+	if (fp == NULL)
+		return;
+
+	fseek(fp, 1, SEEK_SET);		// Pula o char do status para ler o topoPilha
+
+	fwrite(&topoPilha, sizeof(topoPilha), 1, fp);
+	fclose(fp);
+}
+
+int TopoDaPilha(char* nomeArquivo) {
+	if (nomeArquivo == NULL)
+		return -2;
+
+	FILE* fp = fopen(nomeArquivo, "rb");
+	if (fp == NULL)
+		return -2;
+
+	fseek(fp, 1, SEEK_SET);		// Pula o char do status para ler o topoPilha
+
+	int topoPilha;
+	fread(&topoPilha, sizeof(topoPilha), 1, fp);
+	fclose(fp);
+
+	return topoPilha;
+}
+
 void AlteraStatusDoArquivo(char* nomeArquivo, char status) {
 	if (nomeArquivo == NULL || (status != 0 && status != 1))
 		return;
@@ -1095,49 +1126,36 @@ REGISTRO* RecuperaRegistroPorRRN(int RRN)
 	return registro;
 }
 
-void RemocaoLogicaPorRRN(int RRN) {
+int RemocaoLogicaPorRRN(int RRN) {
+	if (RRN < 0 || BYTE_OFFSET(RRN) > (UltimaPosicaoDoArquivo(ARQUIVO_SAIDA) - TAMANHO_REGISTRO))
+		return -1;
 
 	FILE* fp = fopen(ARQUIVO_SAIDA, "rb+");
+	if (fp == NULL)
+		return 0;
 	
-	int topoPilha, regExiste, fimArquivo;
+	int registroExiste;
 
-	fseek(fp, 0, SEEK_END); //aponta para o fim do arquivo
+	fseek(fp, BYTE_OFFSET(RRN), SEEK_SET); //vai para o byte offset de posição RRN
 
-	fimArquivo = ftell(fp); //salva a quantidade de bits do arquivo
+	fread(&registroExiste, sizeof(registroExiste), 1, fp);
 
-	fseek(fp, 0, SEEK_SET); //volta para o início do arquivo
-
-	ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
-	
-	fread(&topoPilha, sizeof(int), 1, fp); //lê o número do topo da pilha
-
-	if(RRN > fimArquivo){ //verifica se o numero do RRN é válido
-		printf(ERRO_REGISTRO);
-		return;
-	}
-
-	fseek(fp, BYTE_OFFSET(RRN), SEEK_CUR); //vai para o byte offset de posição RRN
-
-	fread(&regExiste, sizeof(int), 1, fp);
-
-	if(regExiste == -1){ //verifica se o registro existe
-		printf(ERRO_REGISTRO);
-		return;
-	}
+	if(registroExiste < 0) //verifica se o registro existe
+		return -1;
 
 	int n = -1;
+	int topoPilha = TopoDaPilha(ARQUIVO_SAIDA);
+	AlteraTopoDaPilha(ARQUIVO_SAIDA, RRN);
 
+	fseek(fp, BYTE_OFFSET(RRN), SEEK_SET); //vai para o byte offset de posição RRN
 	fwrite(&n, sizeof(n), 1, fp); //marca o registro como removido
-
 	fwrite(&topoPilha, sizeof(topoPilha), 1, fp); //salva o topo da pilha no registro removido
-
-	fseek(fp, 1, SEEK_SET); //retorna ao cabeçalho com o endereço da pilha
-
-	fwrite(&RRN, sizeof(RRN), 1, fp); //salva o RRN removido no cabeçalho
 
 	printf("Registro removido com sucesso.\n");
 	
 	fclose(fp);
+
+	return 1;
 }
  
 void AtualizaRegistroPorRRN(REGISTRO* registro, int RRN) 
@@ -1234,7 +1252,7 @@ void ImprimeRegistro(REGISTRO* registro) {
 	printf("%s ", registro->endereco);
 	printf("\n");
 }
-void ImprimeRegistros(VETREGISTROS *vetRegistros) {
+void ImpremeVetorDeRegistros(VETREGISTROS *vetRegistros) {
 	
 	if(vetRegistros == NULL){  //caso algum erro foi encontrado
 		printf(ERRO_GERAL);
@@ -1320,11 +1338,11 @@ int main(int argc, char *argv[]){
 			break;
 		case 2:
 			vetRegistros = RecuperaTodosRegistros();
-			ImprimeRegistros(vetRegistros);
+			ImpremeVetorDeRegistros(vetRegistros);
 			break;
 		case 3:
 			vetRegistros = RecuperaRegistrosPorCampo(argv[2], argv[3]);
-			ImprimeRegistros(vetRegistros);
+			ImpremeVetorDeRegistros(vetRegistros);
 			break;
 		case 4:
 			registro = RecuperaRegistroPorRRN(atoi(argv[2]));
