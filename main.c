@@ -83,19 +83,19 @@ void AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro) {
 	if (nomeArquivo == NULL || registro == NULL)
 		return;
 
-	FILE* fp = fopen(nomeArquivo, "ab");
+	FILE* fp = fopen(nomeArquivo, "ab+");
 	int registroRemovido = 0;
 
-	fwrite(&registroRemovido, sizeof(registroRemovido), 1, fp);
-	fwrite(&registro->codEscola, sizeof(registro->codEscola), 1, fp);
+	fwrite(&registroRemovido, sizeof(int), 1, fp);
+	fwrite(&(registro->codEscola), sizeof(int), 1, fp);
 	fwrite(registro->dataInicio, sizeof(char), strlen(registro->dataInicio), fp);
 	fwrite(registro->dataFinal, sizeof(char), strlen(registro->dataFinal), fp);
-	fwrite(&registro->tamNome, sizeof(registro->tamNome), 1, fp);
+	fwrite(&registro->tamNome, sizeof(int), 1, fp);
 	fwrite(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
-	fwrite(&registro->tamEndereco, sizeof(registro->tamEndereco), 1, fp);
-	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
-	fwrite(&registro->tamMunicipio, sizeof(registro->tamMunicipio), 1, fp);
+	fwrite(&registro->tamMunicipio, sizeof(int), 1, fp);
 	fwrite(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
+	fwrite(&registro->tamEndereco, sizeof(int), 1, fp);
+	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
 
 	int bytesRestantes = TAMANHO_REGISTRO;
 	bytesRestantes -= 36 + registro->tamNome + registro->tamEndereco + registro->tamMunicipio;
@@ -127,10 +127,10 @@ void SubstituiRegistro(char* nomeArquivo, REGISTRO* registro, int byteOffset) {
 	fwrite(registro->dataFinal, sizeof(char), strlen(registro->dataFinal), fp);
 	fwrite(&registro->tamNome, sizeof(registro->tamNome), 1, fp);
 	fwrite(registro->nomeEscola, sizeof(char), registro->tamNome, fp);
-	fwrite(&registro->tamEndereco, sizeof(registro->tamEndereco), 1, fp);
-	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
 	fwrite(&registro->tamMunicipio, sizeof(registro->tamMunicipio), 1, fp);
 	fwrite(registro->municipio, sizeof(char), registro->tamMunicipio, fp);
+	fwrite(&registro->tamEndereco, sizeof(registro->tamEndereco), 1, fp);
+	fwrite(registro->endereco, sizeof(char), registro->tamEndereco, fp);
 
 	fclose(fp);
 }
@@ -1008,9 +1008,7 @@ void AtualizaRegistroPorRRN(REGISTRO* registro, int RRN)
 void DesfragmentaArquivoDeDados() {
 	CriaArquivoDeSaida(ARQUIVO_DESFRAGMENTADO);
 	VETREGISTROS* vetRegistros = RecuperaTodosRegistros();
-	printf("AKIII\n");
 	InsereVetorDeRegistros(ARQUIVO_DESFRAGMENTADO, vetRegistros);
-	printf("AKIII\n");
 	if (remove(ARQUIVO_SAIDA)) {		// Remove o antigo arquivo de saída.
 		printf(ERRO_GERAL);
 		exit(-8);
@@ -1019,6 +1017,7 @@ void DesfragmentaArquivoDeDados() {
 		printf(ERRO_GERAL);					// o do antigo.
 		exit(-8);
 	}
+	AlteraStatusDoArquivo(ARQUIVO_SAIDA, 1);
 }
 
 int* RecuperaRRNLogicamenteRemovidos() {
