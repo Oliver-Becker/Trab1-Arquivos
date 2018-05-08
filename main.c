@@ -1134,9 +1134,9 @@ int RemocaoLogicaPorRRN(int RRN) {
 	if (fp == NULL)
 		return 0;
 	
-	int registroExiste;
-
 	fseek(fp, BYTE_OFFSET(RRN), SEEK_SET); //vai para o byte offset de posição RRN
+
+	int registroExiste;
 
 	fread(&registroExiste, sizeof(registroExiste), 1, fp);
 
@@ -1160,16 +1160,12 @@ int RemocaoLogicaPorRRN(int RRN) {
  
 void AtualizaRegistroPorRRN(REGISTRO* registro, int RRN) 
 {
-	FILE* fp = fopen(ARQUIVO_SAIDA,"rb");
-	int byteOffset = BYTE_OFFSET(RRN);
-	fseek(fp,0,SEEK_END);
-	if(ftell(fp) < byteOffset)
-	{	
-		printf(ERRO_REGISTRO);
-		return ;
-	}
-	fclose(fp);
-	SubstituiRegistro(ARQUIVO_SAIDA,registro,byteOffset);
+	if (registro == NULL)
+		return;
+	if (RRN < 0 || BYTE_OFFSET(RRN) > (UltimaPosicaoDoArquivo(ARQUIVO_SAIDA) - TAMANHO_REGISTRO))
+		return;
+
+	SubstituiRegistro(ARQUIVO_SAIDA, registro, BYTE_OFFSET(RRN));
 }
 
 void DesfragmentaArquivoDeDados() {
@@ -1189,46 +1185,38 @@ void DesfragmentaArquivoDeDados() {
 
 int* RecuperaRRNLogicamenteRemovidos() {
 
-	int count = 0;
-	int buffer = 10;
-	int aux;
+	int topoPilha = TopoDaPilha(ARQUIVO_SAIDA);
+
+	int counter = 0;
+	int registroExiste;
 
 	FILE *fp = fopen(ARQUIVO_SAIDA, "rb");
+	if (fp == NULL)
+		return NULL;
 
-	int *vet = (int*) malloc(sizeof(int)*buffer);
+	int* vet = (int*) malloc(sizeof(int));
 
-	vet[0] = count; 
-
-	count++; //incrementa a posição do vetor vTotal
-	if(count == buffer){ //verifica se é necessário dar realloc
-		buffer = buffer + 10;
-		vet = (int*) realloc(vet, buffer);
-	}
-
-	ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA); //confere a consistência do arquivo
-
-	int topoPilha;
-
-	fread(&topoPilha, sizeof(topoPilha), 1, fp); //salva o topo da pilha
-
-	while(topoPilha != -1){ //recupera os RRN enquanto a pilha não estiver vazia
-		
-		vet[0] = ++count; //salva a quantidade de RRN removidos na posição zero do vetor
-		
-		vet[count] = topoPilha; //salva o RRN no vetor
-
-		//vai para o byte offset do RRN salvo no topo da pilha
+	while(topoPilha >= 0){ //recupera os RRN enquanto a pilha não estiver vazia
 		fseek(fp, BYTE_OFFSET(topoPilha), SEEK_SET);
+		fread(&registroExiste, sizeof(registroExiste), 1, fp); //verifica se o registro realmente foi removido
 
-		//verifica se o registro realmente foi removido
-		fread(&aux, sizeof(aux), 1, fp);
-		if(aux != -1)
-			return NULL; 
+		if(registroExiste < 0) {
+			vet = (int*) realloc(vet, sizeof(int) * (++counter + 1));
+			vet[0] = counter;
+			vet[counter] = topoPilha;
 
-		fread(&topoPilha, sizeof(topoPilha), 1, fp); //salva o novo topo da pilha 
+			fread(&topoPilha, sizeof(topoPilha), 1, fp); //salva o novo topo da pilha 
+		} else
+			topoPilha = -1;
 	}
 
 	fclose(fp);
+
+	if (counter > 0) {
+		vet = (int*) realloc(vet, sizeof(int) * (++counter + 1));
+		vet[0] = counter;
+		vet[counter] = topoPilha;
+	}
 
 	return vet;
 }
@@ -1244,14 +1232,13 @@ void ImprimeRegistro(REGISTRO* registro) {
 	if (registro == NULL)
 		return;
 
-	printf("%d ", registro->codEscola);
-	printf("%s ", registro->dataInicio);
-	printf("%s ", registro->dataFinal);
-	printf("%s ", registro->nomeEscola);
-	printf("%s ", registro->municipio);
-	printf("%s ", registro->endereco);
-	printf("\n");
+	REGISTRO* r = registro;
+
+	printf("%1$d %2$s %3$s %4$d%10$.*4$s%5$s %6$d%10$.*6$s%7$s %8$d %9$s\n", r->codEscola,
+		r->dataInicio, r->dataFinal, r->tamNome, r->nomeEscola, r->tamMunicipio,
+		r->municipio, r->tamEndereco, r->endereco, " ");
 }
+
 void ImpremeVetorDeRegistros(VETREGISTROS *vetRegistros) {
 	
 	if(vetRegistros == NULL){  //caso algum erro foi encontrado
@@ -1264,7 +1251,7 @@ void ImpremeVetorDeRegistros(VETREGISTROS *vetRegistros) {
 		return;
 	}
 
-	for(int i=0; i<vetRegistros->numElementos; i++)
+	for(int i = 0; i < vetRegistros->numElementos; i++)
 		ImprimeRegistro(vetRegistros->registro[i]);
 }
 
@@ -1278,7 +1265,7 @@ void ImprimeVetor(int* vet) {
 	int tam = vet[0];
 	
 	if(tam < 1){
-		printf("Pilha vazia");
+		printf("Pilha vazia\n");
 		return;
 	}
 
