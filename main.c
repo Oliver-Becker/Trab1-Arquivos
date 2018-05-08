@@ -143,16 +143,32 @@ void AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro) {
 	fclose(fp);
 }
 
-void SubstituiRegistro(char* nomeArquivo, REGISTRO* registro, int byteOffset) {
+void SubstituiRegistro(char* nomeArquivo, REGISTRO* registro, int RRN) {
 	if (nomeArquivo == NULL || registro == NULL)
 		return;
 
 	FILE* fp = fopen(nomeArquivo, "rb+");
-	int registroRemovido = 0;
+	if (fp == NULL)
+		return;
 
-	fseek(fp, byteOffset, SEEK_SET);
+	fseek(fp, BYTE_OFFSET(RRN), SEEK_SET);
+	int registroExiste;
+	fread(&registroExiste, sizeof(registroExiste), 1, fp);
 
-	fwrite(&registroRemovido, sizeof(registroRemovido), 1, fp);
+	if (registroExiste < 0) {	// Caso o registro não exista.
+		int topoPilha = TopoDaPilha(nomeArquivo);
+		if (topoPilha != RRN) {
+			fclose(fp);
+			return;
+		}
+		fread(&topoPilha, sizeof(topoPilha), 1, fp);
+		AlteraTopoDaPilha(nomeArquivo, topoPilha);
+	}
+
+	fseek(fp, BYTE_OFFSET(RRN), SEEK_SET);
+	registroExiste = 0;
+
+	fwrite(&registroExiste, sizeof(registroExiste), 1, fp);
 	fwrite(&registro->codEscola, sizeof(registro->codEscola), 1, fp);
 	fwrite(registro->dataInicio, sizeof(char), strlen(registro->dataInicio), fp);
 	fwrite(registro->dataFinal, sizeof(char), strlen(registro->dataFinal), fp);
@@ -180,7 +196,7 @@ void InsereRegistro(char* nomeArquivo, REGISTRO* registro) {
 	fclose(fp);
 
 	(topoPilha == -1) ? AcrescentaRegistroNoFinal(nomeArquivo, registro) : 
-		SubstituiRegistro(nomeArquivo, registro, BYTE_OFFSET(topoPilha));
+		SubstituiRegistro(nomeArquivo, registro, topoPilha);
 }
 
 void LiberaRegistro(REGISTRO* registro) {
@@ -1165,6 +1181,15 @@ void AtualizaRegistroPorRRN(REGISTRO* registro, int RRN)
 	if (RRN < 0 || BYTE_OFFSET(RRN) > (UltimaPosicaoDoArquivo(ARQUIVO_SAIDA) - TAMANHO_REGISTRO))
 		return;
 
+	FILE* fp = fopen(ARQUIVO_SAIDA, "rb");
+	fseek(fp, BYTE_OFFSET(RRN), SEEK_SET);
+
+	int registroExiste;
+	fread(&registroExiste, sizeof(registroExiste), 1, fp);
+	fclose(fp);
+	if (registroExiste < 0)
+		return;
+
 	SubstituiRegistro(ARQUIVO_SAIDA, registro, BYTE_OFFSET(RRN));
 }
 
@@ -1339,7 +1364,7 @@ int main(int argc, char *argv[]){
 			RemocaoLogicaPorRRN(atoi(argv[2]));
 			break;
 		case 6:
-			ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
+			//ConfereConsistenciaDoArquivo(ARQUIVO_SAIDA);
 			registro = LeRegistroDaEntrada(argv+2);
 			InsereRegistro(ARQUIVO_SAIDA, registro);
 
