@@ -349,7 +349,7 @@ int AtualizaRegistroPorRRN(REGISTRO* registro, int RRN)
 	if (registroExiste < 0)
 		return -1;
 
-	return SubstituiRegistro(ARQUIVO_SAIDA, registro, BYTE_OFFSET(RRN));
+	return SubstituiRegistro(ARQUIVO_SAIDA, registro, RRN);
 }
 
 int DesfragmentaArquivoDeDados() {
@@ -441,6 +441,7 @@ int ImprimeErro(int erro) {
 	switch(erro) {
 		case -2:
 			printf("Pilha vazia.\n");
+			return 3;
 		case -1:
 			IMPRIME_ERRO_REGISTRO
 			return 2;

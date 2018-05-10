@@ -12,9 +12,7 @@
 #define DATA_VAZIA "0000000000"
 #define CAMPO_VAZIO ""
 
-typedef struct reg REGISTRO;
-
-struct reg {
+typedef struct {
 	int codEscola;
 	char dataInicio[TAMANHO_DATA + 1];
 	char dataFinal[TAMANHO_DATA + 1];
@@ -24,7 +22,7 @@ struct reg {
 	char *municipio;
 	int tamEndereco;
 	char *endereco;
-};
+} REGISTRO;
 
 REGISTRO* InsereCamposEmRegistro(char* campo[]);
 int AcrescentaRegistroNoFinal(char* nomeArquivo, REGISTRO* registro);
